@@ -47,6 +47,7 @@ import { NotificationPanel } from './NotificationPanel';
 import { OfflineDownloadPanel } from './OfflineDownloadPanel';
 import { useVersionCheck } from './VersionCheckProvider';
 import { VersionPanel } from './VersionPanel';
+import { DownloadManagementPanel } from './DownloadManagementPanel';
 
 interface AuthInfo {
   username?: string;
@@ -67,6 +68,8 @@ export const UserMenu: React.FC = () => {
   const [isEmailSettingsOpen, setIsEmailSettingsOpen] = useState(false);
   const [isDeviceManagementOpen, setIsDeviceManagementOpen] = useState(false);
   const [isEcoAppsOpen, setIsEcoAppsOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isDownloadManagementOpen, setIsDownloadManagementOpen] = useState(false);
   const [authInfo, setAuthInfo] = useState<AuthInfo | null>(null);
   const [storageType, setStorageType] = useState<string>('localstorage');
   const [mounted, setMounted] = useState(false);
@@ -75,12 +78,16 @@ export const UserMenu: React.FC = () => {
   // 订阅相关状态
   const [subscribeEnabled, setSubscribeEnabled] = useState(false);
   const [subscribeUrl, setSubscribeUrl] = useState('');
+  const [subscribeUrlWithAdFilter, setSubscribeUrlWithAdFilter] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
-  const [adFilterEnabled, setAdFilterEnabled] = useState(true); // 去广告开关，默认开启
+  const [copySuccessAdFilter, setCopySuccessAdFilter] = useState(false);
+  const [tvboxToken, setTvboxToken] = useState('');
+  const [isResettingToken, setIsResettingToken] = useState(false);
+  const [isLoadingSubscribeUrl, setIsLoadingSubscribeUrl] = useState(false);
 
   // Body 滚动锁定 - 使用 overflow 方式避免布局问题
   useEffect(() => {
-    if (isSettingsOpen || isChangePasswordOpen || isSubscribeOpen || isOfflineDownloadPanelOpen || isEmailSettingsOpen || isDeviceManagementOpen || isEcoAppsOpen) {
+    if (isSettingsOpen || isChangePasswordOpen || isSubscribeOpen || isOfflineDownloadPanelOpen || isEmailSettingsOpen || isDeviceManagementOpen || isEcoAppsOpen || isReportOpen || isDownloadManagementOpen) {
       const body = document.body;
       const html = document.documentElement;
 
@@ -124,6 +131,10 @@ export const UserMenu: React.FC = () => {
   const [danmakuHeatmapDisabled, setDanmakuHeatmapDisabled] = useState(false);
   const [searchTraditionalToSimplified, setSearchTraditionalToSimplified] = useState(false);
   const [exactSearch, setExactSearch] = useState(true);
+  const [maxConcurrentDownloads, setMaxConcurrentDownloads] = useState(6);
+  const [downloadThreadsPerTask, setDownloadThreadsPerTask] = useState(6);
+  const [downloadMode, setDownloadMode] = useState<'browser' | 'filesystem'>('browser');
+  const [filesystemSavePath, setFilesystemSavePath] = useState<string>('');
 
   // 邮件通知设置
   const [userEmail, setUserEmail] = useState('');
@@ -150,11 +161,12 @@ export const UserMenu: React.FC = () => {
   });
 
   // 折叠面板状态
-  const [isDoubanSectionOpen, setIsDoubanSectionOpen] = useState(true);
+  const [isDoubanSectionOpen, setIsDoubanSectionOpen] = useState(false);
 
   // TMDB 图片设置
   const [tmdbImageBaseUrl, setTmdbImageBaseUrl] = useState('https://image.tmdb.org');
   const [isUsageSectionOpen, setIsUsageSectionOpen] = useState(false);
+  const [isDownloadSectionOpen, setIsDownloadSectionOpen] = useState(false);
   const [isBufferSectionOpen, setIsBufferSectionOpen] = useState(false);
   const [isDanmakuSectionOpen, setIsDanmakuSectionOpen] = useState(false);
   const [isHomepageSectionOpen, setIsHomepageSectionOpen] = useState(false);
@@ -302,18 +314,89 @@ export const UserMenu: React.FC = () => {
   }, []);
 
   // 懒加载订阅 URL - 只在打开订阅面板时请求
-  const fetchSubscribeUrl = async (adFilter?: boolean) => {
+  const fetchSubscribeUrl = async () => {
+    setIsLoadingSubscribeUrl(true);
     try {
-      const currentOrigin = window.location.origin;
-      const filterValue = adFilter !== undefined ? adFilter : adFilterEnabled;
-      const response = await fetch(`/api/tvbox/config?origin=${encodeURIComponent(currentOrigin)}&adFilter=${filterValue}`);
+      // 获取用户的 TVBox token
+      const response = await fetch('/api/user/tvbox-token');
       if (response.ok) {
         const data = await response.json();
-        setSubscribeUrl(data.url);
+        const token = data.token;
+        setTvboxToken(token);
+
+        // 前端拼接订阅链接
+        const currentOrigin = window.location.origin;
+        const standardUrl = `${currentOrigin}/api/tvbox/subscribe?token=${token}`;
+        const adFilterUrl = `${currentOrigin}/api/tvbox/subscribe?token=${token}&adFilter=true`;
+
+        setSubscribeUrl(standardUrl);
+        setSubscribeUrlWithAdFilter(adFilterUrl);
       }
     } catch (error) {
       console.error('获取订阅URL失败:', error);
+    } finally {
+      setIsLoadingSubscribeUrl(false);
     }
+  };
+
+  // 重置 TVBox token
+  const handleResetToken = async () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: '重置订阅Token',
+      message: '确定要重置订阅token吗？重置后旧的订阅链接将失效。',
+      onConfirm: async () => {
+        setConfirmDialog({ ...confirmDialog, isOpen: false });
+        setIsResettingToken(true);
+
+        try {
+          const response = await fetch('/api/user/tvbox-token/reset', {
+            method: 'POST',
+          });
+
+          const messageEl = document.getElementById('tvbox-token-message');
+          if (response.ok) {
+            const data = await response.json();
+            const token = data.token;
+            setTvboxToken(token);
+
+            // 更新订阅链接
+            const currentOrigin = window.location.origin;
+            const standardUrl = `${currentOrigin}/api/tvbox/subscribe?token=${token}`;
+            const adFilterUrl = `${currentOrigin}/api/tvbox/subscribe?token=${token}&adFilter=true`;
+
+            setSubscribeUrl(standardUrl);
+            setSubscribeUrlWithAdFilter(adFilterUrl);
+
+            if (messageEl) {
+              messageEl.textContent = '订阅token已重置！';
+              messageEl.className = 'text-xs text-center text-green-600 dark:text-green-400 mt-2';
+              messageEl.classList.remove('hidden');
+              setTimeout(() => {
+                messageEl.classList.add('hidden');
+              }, 3000);
+            }
+          } else {
+            const data = await response.json();
+            if (messageEl) {
+              messageEl.textContent = data.error || '重置失败，请重试';
+              messageEl.className = 'text-xs text-center text-red-600 dark:text-red-400 mt-2';
+              messageEl.classList.remove('hidden');
+            }
+          }
+        } catch (error) {
+          console.error('重置token失败:', error);
+          const messageEl = document.getElementById('tvbox-token-message');
+          if (messageEl) {
+            messageEl.textContent = '重置失败，请重试';
+            messageEl.className = 'text-xs text-center text-red-600 dark:text-red-400 mt-2';
+            messageEl.classList.remove('hidden');
+          }
+        } finally {
+          setIsResettingToken(false);
+        }
+      },
+    });
   };
 
   // 获取认证信息和存储类型
@@ -478,6 +561,30 @@ export const UserMenu: React.FC = () => {
       const savedExactSearch = localStorage.getItem('exactSearch');
       if (savedExactSearch !== null) {
         setExactSearch(savedExactSearch === 'true');
+      }
+
+      // 加载最大同时下载限制设置
+      const savedMaxConcurrentDownloads = localStorage.getItem('maxConcurrentDownloads');
+      if (savedMaxConcurrentDownloads !== null) {
+        setMaxConcurrentDownloads(Number(savedMaxConcurrentDownloads));
+      }
+
+      // 加载单任务线程数设置
+      const savedDownloadThreadsPerTask = localStorage.getItem('downloadThreadsPerTask');
+      if (savedDownloadThreadsPerTask !== null) {
+        setDownloadThreadsPerTask(Number(savedDownloadThreadsPerTask));
+      }
+
+      // 加载下载模式设置
+      const savedDownloadMode = localStorage.getItem('downloadMode');
+      if (savedDownloadMode === 'browser' || savedDownloadMode === 'filesystem') {
+        setDownloadMode(savedDownloadMode);
+      }
+
+      // 加载保存路径设置
+      const savedFilesystemSavePath = localStorage.getItem('filesystemSavePath');
+      if (savedFilesystemSavePath !== null) {
+        setFilesystemSavePath(savedFilesystemSavePath);
       }
     }
   }, []);
@@ -718,12 +825,7 @@ export const UserMenu: React.FC = () => {
   const handleCloseSubscribe = () => {
     setIsSubscribeOpen(false);
     setCopySuccess(false);
-  };
-
-  const handleAdFilterToggle = async (checked: boolean) => {
-    setAdFilterEnabled(checked);
-    // 当去广告开关改变时,重新获取订阅URL，传入新的值
-    await fetchSubscribeUrl(checked);
+    setCopySuccessAdFilter(false);
   };
 
   const handleCopySubscribeUrl = async () => {
@@ -732,6 +834,18 @@ export const UserMenu: React.FC = () => {
       setCopySuccess(true);
       setTimeout(() => {
         setCopySuccess(false);
+      }, 2000);
+    } catch (error) {
+      console.error('复制失败:', error);
+    }
+  };
+
+  const handleCopySubscribeUrlWithAdFilter = async () => {
+    try {
+      await navigator.clipboard.writeText(subscribeUrlWithAdFilter);
+      setCopySuccessAdFilter(true);
+      setTimeout(() => {
+        setCopySuccessAdFilter(false);
       }, 2000);
     } catch (error) {
       console.error('复制失败:', error);
@@ -817,6 +931,105 @@ export const UserMenu: React.FC = () => {
     setSpeedTestTimeout(value);
     if (typeof window !== 'undefined') {
       localStorage.setItem('speedTestTimeout', String(value));
+    }
+  };
+
+  const handleMaxConcurrentDownloadsChange = (value: number) => {
+    setMaxConcurrentDownloads(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('maxConcurrentDownloads', String(value));
+    }
+  };
+
+  const handleDownloadThreadsPerTaskChange = (value: number) => {
+    setDownloadThreadsPerTask(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('downloadThreadsPerTask', String(value));
+    }
+  };
+
+  const handleDownloadModeChange = (mode: 'browser' | 'filesystem') => {
+    // 如果选择 filesystem 模式，先检测浏览器是否支持
+    if (mode === 'filesystem' && typeof window !== 'undefined' && !('showDirectoryPicker' in window)) {
+      setConfirmDialog({
+        isOpen: true,
+        title: '浏览器不支持',
+        message: '您的浏览器不支持 File System Access API，请使用 Chrome 86+ 或 Edge 86+',
+        onConfirm: () => {
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        },
+      });
+      return;
+    }
+
+    setDownloadMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('downloadMode', mode);
+    }
+  };
+
+  const handleSelectSavePath = async () => {
+    try {
+      const dirHandle = await (window as any).showDirectoryPicker();
+      setFilesystemSavePath(dirHandle.name);
+      localStorage.setItem('filesystemSavePath', dirHandle.name);
+
+      // 保存目录句柄到 IndexedDB
+      const dbName = 'MoonTVPlus';
+      const storeName = 'dirHandles';
+
+      // 使用 Promise 包装 IndexedDB 操作
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open(dbName, 2); // 使用版本 2，与 download-db.ts 保持一致
+
+        request.onupgradeneeded = (event) => {
+          const db = (event.target as IDBOpenDBRequest).result;
+
+          // 创建 dirHandles 表（如果不存在）
+          if (!db.objectStoreNames.contains(storeName)) {
+            db.createObjectStore(storeName);
+          }
+
+          // 创建 activeTasks 表（如果不存在）
+          if (!db.objectStoreNames.contains('activeTasks')) {
+            const activeStore = db.createObjectStore('activeTasks', { keyPath: 'id' });
+            activeStore.createIndex('status', 'status', { unique: false });
+            activeStore.createIndex('createdAt', 'createdAt', { unique: false });
+          }
+
+          // 创建 completedTasks 表（如果不存在）
+          if (!db.objectStoreNames.contains('completedTasks')) {
+            const completedStore = db.createObjectStore('completedTasks', { keyPath: 'id' });
+            completedStore.createIndex('source', 'source', { unique: false });
+            completedStore.createIndex('videoId', 'videoId', { unique: false });
+            completedStore.createIndex('completedAt', 'completedAt', { unique: false });
+            completedStore.createIndex('sourceVideoId', ['source', 'videoId'], { unique: false });
+          }
+        };
+
+        request.onsuccess = (event) => {
+          const db = (event.target as IDBOpenDBRequest).result;
+          const transaction = db.transaction([storeName], 'readwrite');
+          const store = transaction.objectStore(storeName);
+          const putRequest = store.put(dirHandle, 'downloadDir');
+
+          putRequest.onsuccess = () => {
+            db.close();
+            resolve();
+          };
+
+          putRequest.onerror = () => {
+            db.close();
+            reject(new Error('保存目录句柄失败'));
+          };
+        };
+
+        request.onerror = () => {
+          reject(new Error('无法打开 IndexedDB'));
+        };
+      });
+    } catch (err) {
+      console.error('选择目录失败:', err);
     }
   };
 
@@ -1424,7 +1637,7 @@ export const UserMenu: React.FC = () => {
                 <div className='flex items-center gap-2'>
                   <Globe className='w-5 h-5 text-gray-600 dark:text-gray-400' />
                   <h3 className='text-base font-semibold text-gray-800 dark:text-gray-200'>
-                    网络设置
+                    数据源设置
                   </h3>
                 </div>
                 {isDoubanSectionOpen ? (
@@ -1941,6 +2154,200 @@ export const UserMenu: React.FC = () => {
               )}
             </div>
 
+            {/* 下载设置 */}
+            <div className='border border-gray-200 dark:border-gray-700 rounded-lg overflow-visible'>
+              <button
+                onClick={() => setIsDownloadSectionOpen(!isDownloadSectionOpen)}
+                className='w-full px-3 py-2.5 md:px-4 md:py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors flex items-center justify-between'
+              >
+                <div className='flex items-center gap-2'>
+                  <Download className='w-5 h-5 text-gray-600 dark:text-gray-400' />
+                  <h3 className='text-base font-semibold text-gray-800 dark:text-gray-200'>
+                    下载设置
+                  </h3>
+                </div>
+                {isDownloadSectionOpen ? (
+                  <ChevronUp className='w-5 h-5 text-gray-600 dark:text-gray-400' />
+                ) : (
+                  <ChevronDown className='w-5 h-5 text-gray-600 dark:text-gray-400' />
+                )}
+              </button>
+              {isDownloadSectionOpen && (
+                <div className='p-3 md:p-4 space-y-4 md:space-y-6'>
+                  {/* 最大同时下载限制 */}
+                  <div className='space-y-2'>
+                    <div>
+                      <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                        最大同时下载限制
+                      </h4>
+                      <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                        控制播放页面下载时的同时下载数量
+                      </p>
+                    </div>
+                    <div className='flex items-center justify-between'>
+                      <span className='text-xs text-gray-600 dark:text-gray-400'>
+                        同时下载数量
+                      </span>
+                      <span className='text-xs font-medium text-gray-700 dark:text-gray-300'>
+                        {maxConcurrentDownloads}个
+                      </span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <input
+                        type='range'
+                        min='1'
+                        max='10'
+                        step='1'
+                        value={maxConcurrentDownloads}
+                        onChange={(e) => handleMaxConcurrentDownloadsChange(Number(e.target.value))}
+                        className='flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700'
+                        style={{
+                          background: `linear-gradient(to right, #10b981 0%, #10b981 ${((maxConcurrentDownloads - 1) / (10 - 1)) * 100}%, #e5e7eb ${((maxConcurrentDownloads - 1) / (10 - 1)) * 100}%, #e5e7eb 100%)`
+                        }}
+                      />
+                    </div>
+                    <div className='flex justify-between text-xs text-gray-500 dark:text-gray-400'>
+                      <button
+                        onClick={() => handleMaxConcurrentDownloadsChange(1)}
+                        className={`px-2 py-0.5 rounded ${maxConcurrentDownloads === 1 ? 'bg-green-500 text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                      >
+                        1个
+                      </button>
+                      <button
+                        onClick={() => handleMaxConcurrentDownloadsChange(10)}
+                        className={`px-2 py-0.5 rounded ${maxConcurrentDownloads === 10 ? 'bg-green-500 text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                      >
+                        10个
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 单任务线程数 */}
+                  <div className='space-y-2'>
+                    <div>
+                      <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                        单任务线程数
+                      </h4>
+                      <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                        控制每个下载任务使用的线程数量，线程越多下载越快但占用资源越多
+                      </p>
+                    </div>
+                    <div className='flex items-center justify-between'>
+                      <span className='text-xs text-gray-600 dark:text-gray-400'>
+                        线程数量
+                      </span>
+                      <span className='text-xs font-medium text-gray-700 dark:text-gray-300'>
+                        {downloadThreadsPerTask}个
+                      </span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <input
+                        type='range'
+                        min='1'
+                        max='32'
+                        step='1'
+                        value={downloadThreadsPerTask}
+                        onChange={(e) => handleDownloadThreadsPerTaskChange(Number(e.target.value))}
+                        className='flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700'
+                        style={{
+                          background: `linear-gradient(to right, #10b981 0%, #10b981 ${((downloadThreadsPerTask - 1) / (32 - 1)) * 100}%, #e5e7eb ${((downloadThreadsPerTask - 1) / (32 - 1)) * 100}%, #e5e7eb 100%)`
+                        }}
+                      />
+                    </div>
+                    <div className='flex justify-between text-xs text-gray-500 dark:text-gray-400'>
+                      <button
+                        onClick={() => handleDownloadThreadsPerTaskChange(1)}
+                        className={`px-2 py-0.5 rounded ${downloadThreadsPerTask === 1 ? 'bg-green-500 text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                      >
+                        1个
+                      </button>
+                      <button
+                        onClick={() => handleDownloadThreadsPerTaskChange(32)}
+                        className={`px-2 py-0.5 rounded ${downloadThreadsPerTask === 32 ? 'bg-green-500 text-white' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                      >
+                        32个
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 下载模式 */}
+                  <div className='space-y-2'>
+                    <div>
+                      <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                        下载模式
+                      </h4>
+                    </div>
+                    <div className='space-y-2'>
+                      <label className='flex items-center gap-2 cursor-pointer'>
+                        <input
+                          type='radio'
+                          name='downloadMode'
+                          value='browser'
+                          checked={downloadMode === 'browser'}
+                          onChange={() => handleDownloadModeChange('browser')}
+                          className='w-4 h-4 text-green-500'
+                        />
+                        <span className='text-sm text-gray-700 dark:text-gray-300'>
+                          浏览器下载（合并为单文件）
+                        </span>
+                      </label>
+                      <label className='flex items-center gap-2 cursor-pointer'>
+                        <input
+                          type='radio'
+                          name='downloadMode'
+                          value='filesystem'
+                          checked={downloadMode === 'filesystem'}
+                          onChange={() => handleDownloadModeChange('filesystem')}
+                          className='w-4 h-4 text-green-500'
+                        />
+                        <span className='text-sm text-gray-700 dark:text-gray-300'>
+                          File System API（保存分片到本地目录）
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* 保存路径选择（仅在 filesystem 模式显示） */}
+                    {downloadMode === 'filesystem' && (
+                      <div className='mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-2'>
+                        <label className='block text-xs font-medium text-gray-700 dark:text-gray-300'>
+                          保存路径
+                        </label>
+                        <div className='flex gap-2'>
+                          <input
+                            type='text'
+                            value={filesystemSavePath}
+                            readOnly
+                            placeholder='点击选择保存目录'
+                            className='flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                          />
+                          <button
+                            onClick={handleSelectSavePath}
+                            className='px-4 py-2 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors'
+                          >
+                            选择目录
+                          </button>
+                        </div>
+                        <p className='text-xs text-gray-500 dark:text-gray-400'>
+                          需要 Chrome 86+ 或 Edge 86+ 浏览器支持
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 下载文件管理 */}
+                  <div className='space-y-2'>
+                    <button
+                      onClick={() => setIsDownloadManagementOpen(true)}
+                      className='w-full px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center justify-center gap-2'
+                    >
+                      <Package className='w-4 h-4' />
+                      下载文件管理
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* 缓冲设置 */}
             <div className='border border-gray-200 dark:border-gray-700 rounded-lg overflow-visible'>
               <button
@@ -2449,7 +2856,7 @@ export const UserMenu: React.FC = () => {
           {/* 标题栏 */}
           <div className='flex items-center justify-between mb-6'>
             <h3 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
-              订阅
+              TVBox订阅
             </h3>
             <button
               onClick={handleCloseSubscribe}
@@ -2462,58 +2869,105 @@ export const UserMenu: React.FC = () => {
 
           {/* 内容 */}
           <div className='space-y-4'>
-            {/* 去广告开关 */}
-            <div className='flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg'>
-              <div>
-                <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                  去广告
-                </h4>
-                <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                  开启后自动过滤视频广告
-                </p>
-              </div>
-              <label className='flex items-center cursor-pointer'>
-                <div className='relative'>
-                  <input
-                    type='checkbox'
-                    className='sr-only peer'
-                    checked={adFilterEnabled}
-                    onChange={(e) => handleAdFilterToggle(e.target.checked)}
-                  />
-                  <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
-                  <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
+            {isLoadingSubscribeUrl ? (
+              <>
+                {/* 加载骨架 - 订阅链接（标准） */}
+                <div>
+                  <div className='h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse'></div>
+                  <div className='flex gap-2'>
+                    <div className='flex-1 h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
+                    <div className='w-20 h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
+                  </div>
                 </div>
-              </label>
-            </div>
 
-            {/* TVBOX订阅 */}
-            <div>
-              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                TVBOX订阅
-              </h4>
-              <div className='flex gap-2'>
-                <input
-                  type='text'
-                  className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 cursor-not-allowed'
-                  value={subscribeUrl}
-                  disabled
-                  readOnly
-                />
-                <button
-                  onClick={handleCopySubscribeUrl}
-                  className='px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-2'
-                >
-                  <Copy className='w-4 h-4' />
-                  {copySuccess ? '已复制' : '复制'}
-                </button>
-              </div>
-            </div>
+                {/* 加载骨架 - 订阅链接（去广告） */}
+                <div>
+                  <div className='h-5 w-36 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse'></div>
+                  <div className='flex gap-2'>
+                    <div className='flex-1 h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
+                    <div className='w-20 h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
+                  </div>
+                  <div className='h-4 w-full bg-gray-200 dark:bg-gray-700 rounded mt-1 animate-pulse'></div>
+                </div>
+
+                {/* 加载骨架 - 重置按钮 */}
+                <div className='pt-2'>
+                  <div className='w-full h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse'></div>
+                  <div className='h-4 w-40 bg-gray-200 dark:bg-gray-700 rounded mt-2 mx-auto animate-pulse'></div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* 订阅链接（标准） */}
+                <div>
+                  <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    订阅链接（标准）
+                  </h4>
+                  <div className='flex gap-2'>
+                    <input
+                      type='text'
+                      className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                      value={subscribeUrl}
+                      readOnly
+                    />
+                    <button
+                      onClick={handleCopySubscribeUrl}
+                      className='px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-2 whitespace-nowrap'
+                    >
+                      <Copy className='w-4 h-4' />
+                      {copySuccess ? '已复制' : '复制'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 订阅链接（去广告） */}
+                <div>
+                  <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                    订阅链接（去广告）
+                  </h4>
+                  <div className='flex gap-2'>
+                    <input
+                      type='text'
+                      className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                      value={subscribeUrlWithAdFilter}
+                      readOnly
+                    />
+                    <button
+                      onClick={handleCopySubscribeUrlWithAdFilter}
+                      className='px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-2 whitespace-nowrap'
+                    >
+                      <Copy className='w-4 h-4' />
+                      {copySuccessAdFilter ? '已复制' : '复制'}
+                    </button>
+                  </div>
+                  <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                    💡 去广告需要经过服务器代理，某些源可能因为区域或兼容问题无法播放
+                  </p>
+                </div>
+
+                {/* 重置Token按钮 */}
+                <div className='pt-2'>
+                  <button
+                    onClick={handleResetToken}
+                    disabled={isResettingToken}
+                    className='w-full px-4 py-2 bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 text-white text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                  >
+                    {isResettingToken ? '重置中...' : '重置订阅Token'}
+                  </button>
+                  <p className='text-xs text-gray-500 dark:text-gray-400 mt-2 text-center'>
+                    ⚠️ 重置后旧链接将失效
+                  </p>
+                  {/* 消息提示 */}
+                  <p id='tvbox-token-message' className='text-xs text-center hidden'></p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* 底部说明 */}
           <div className='mt-6 pt-4 border-t border-gray-200 dark:border-gray-700'>
             <p className='text-xs text-gray-500 dark:text-gray-400 text-center'>
-              将订阅链接复制到TVBOX应用中使用
+              将订阅链接复制到TVBox应用中使用
             </p>
           </div>
         </div>
@@ -2911,6 +3365,81 @@ export const UserMenu: React.FC = () => {
     </>
   );
 
+  // 举报信息弹窗
+  const reportPanel = (
+    <>
+      {/* 背景遮罩 */}
+      <div
+        className='fixed inset-0 bg-black/50 backdrop-blur-sm z-[1002]'
+        onClick={() => setIsReportOpen(false)}
+        onTouchMove={(e) => {
+          e.preventDefault();
+        }}
+        onWheel={(e) => {
+          e.preventDefault();
+        }}
+        style={{
+          touchAction: 'none',
+        }}
+      />
+
+      {/* 举报信息面板 */}
+      <div
+        className='fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white dark:bg-gray-900 rounded-xl shadow-xl z-[1003] overflow-hidden'
+      >
+        <div
+          className='h-full max-h-[70vh] flex flex-col'
+          data-panel-content
+          onTouchMove={(e) => {
+            e.stopPropagation();
+          }}
+          style={{
+            touchAction: 'auto',
+          }}
+        >
+          {/* 标题栏 */}
+          <div className='flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700'>
+            <h3 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+              耻辱柱
+            </h3>
+            <button
+              onClick={() => setIsReportOpen(false)}
+              className='w-8 h-8 p-1 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'
+              aria-label='Close'
+            >
+              <X className='w-full h-full' />
+            </button>
+          </div>
+
+          {/* 内容区域 */}
+          <div className='flex-1 overflow-y-auto p-6'>
+            <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4'>
+              <p className='text-gray-800 dark:text-gray-200 leading-relaxed'>
+                抄袭狗<span className='font-bold text-red-600 dark:text-red-400'>SzeMeng76</span>毫无廉耻，盯着本项目的commit区，疯狂抄袭。警告亦全当看不见，实为开源界耻辱。
+              </p>
+              <p className='text-gray-800 dark:text-gray-200 leading-relaxed mt-3'>
+                超分，观影室，豆瓣反爬，精确搜索等等等等，直接抄袭，最不要脸的就是，刚更新一版，几小时后直接抄走。
+              </p>
+              <p className='text-gray-800 dark:text-gray-200 leading-relaxed mt-3'>
+                <span className='font-semibold text-red-600 dark:text-red-400'>2026-02-25：</span>抄袭emby功能
+              </p>
+            </div>
+          </div>
+
+          {/* 底部按钮 */}
+          <div className='p-6 border-t border-gray-200 dark:border-gray-700'>
+            <button
+              onClick={() => setIsReportOpen(false)}
+              className='w-full px-4 py-2.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium rounded-lg transition-colors'
+            >
+              我知道了
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
   // 生态应用面板内容
   const ecoAppsPanel = (
     <>
@@ -2948,13 +3477,25 @@ export const UserMenu: React.FC = () => {
             <h3 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
               生态应用
             </h3>
-            <button
-              onClick={() => setIsEcoAppsOpen(false)}
-              className='w-8 h-8 p-1 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'
-              aria-label='Close'
-            >
-              <X className='w-full h-full' />
-            </button>
+            <div className='flex items-center gap-2'>
+              {/* 举报按钮 */}
+              <button
+                onClick={() => setIsReportOpen(true)}
+                className='w-8 h-8 p-1 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-lg'
+                aria-label='Report'
+                title='举报抄袭'
+              >
+                🐶
+              </button>
+              {/* 关闭按钮 */}
+              <button
+                onClick={() => setIsEcoAppsOpen(false)}
+                className='w-8 h-8 p-1 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'
+                aria-label='Close'
+              >
+                <X className='w-full h-full' />
+              </button>
+            </div>
           </div>
 
           {/* 应用列表 */}
@@ -3016,37 +3557,15 @@ export const UserMenu: React.FC = () => {
                     </p>
                     <div className='flex flex-wrap gap-2'>
                       <a
-                        href='https://github.com/mtvpls/MoonTVPlus/releases/tag/Selene_Beta4'
+                        href='https://github.com/mtvpls/Selene-Build/releases'
                         target='_blank'
                         rel='noopener noreferrer'
                         className='inline-flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors'
                       >
                         <Download className='w-4 h-4' />
-                        安卓下载
+                        下载
                         <ExternalLink className='w-3 h-3' />
                       </a>
-                      <button
-                        onClick={() => {
-                          const ua = navigator.userAgent.toLowerCase();
-                          let targetUrl = 'https://github.com/mtvpls/Selene-Build/actions/workflows/build.yml';
-
-                          // 根据 UA 判断平台
-                          if (ua.includes('windows')) {
-                            targetUrl = 'https://github.com/mtvpls/Selene-Build/actions/workflows/build.yml';
-                          } else if (ua.includes('mac')) {
-                            targetUrl = 'https://github.com/mtvpls/Selene-Build/actions/workflows/build.yml';
-                          } else if (ua.includes('linux')) {
-                            targetUrl = 'https://github.com/mtvpls/Selene-Build/actions/workflows/build.yml';
-                          }
-
-                          window.open(targetUrl, '_blank');
-                        }}
-                        className='inline-flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium rounded-lg transition-colors'
-                      >
-                        <Download className='w-4 h-4' />
-                        其他平台
-                        <ExternalLink className='w-3 h-3' />
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -3172,6 +3691,17 @@ export const UserMenu: React.FC = () => {
           document.body
         )}
 
+      {/* 使用 Portal 将下载文件管理面板渲染到 document.body */}
+      {isDownloadManagementOpen &&
+        mounted &&
+        createPortal(
+          <DownloadManagementPanel
+            isOpen={isDownloadManagementOpen}
+            onClose={() => setIsDownloadManagementOpen(false)}
+          />,
+          document.body
+        )}
+
       {/* 使用 Portal 将邮件设置面板渲染到 document.body */}
       {isEmailSettingsOpen &&
         mounted &&
@@ -3186,6 +3716,11 @@ export const UserMenu: React.FC = () => {
       {isEcoAppsOpen &&
         mounted &&
         createPortal(ecoAppsPanel, document.body)}
+
+      {/* 使用 Portal 将举报信息面板渲染到 document.body */}
+      {isReportOpen &&
+        mounted &&
+        createPortal(reportPanel, document.body)}
 
       {/* 确认对话框 */}
       {confirmDialog.isOpen &&

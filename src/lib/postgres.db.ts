@@ -67,9 +67,9 @@ export class PostgresStorage implements IStorage {
           INSERT INTO play_records (
             username, key, title, source_name, cover, year,
             episode_index, total_episodes, play_time, total_time,
-            save_time, search_title
+            save_time, search_title, new_episodes
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
           ON CONFLICT (username, key) DO UPDATE SET
             title = EXCLUDED.title,
             source_name = EXCLUDED.source_name,
@@ -80,7 +80,8 @@ export class PostgresStorage implements IStorage {
             play_time = EXCLUDED.play_time,
             total_time = EXCLUDED.total_time,
             save_time = EXCLUDED.save_time,
-            search_title = EXCLUDED.search_title
+            search_title = EXCLUDED.search_title,
+            new_episodes = EXCLUDED.new_episodes
         `)
         .bind(
           userName,
@@ -94,7 +95,8 @@ export class PostgresStorage implements IStorage {
           record.play_time,
           record.total_time,
           record.save_time,
-          record.search_title || ''
+          record.search_title || '',
+          record.new_episodes || null
         )
         .run();
     } catch (err) {
@@ -301,6 +303,7 @@ export class PostgresStorage implements IStorage {
       total_time: row.total_time,
       save_time: row.save_time,
       search_title: row.search_title || '',
+      new_episodes: row.new_episodes || undefined,
     };
   }
 
@@ -905,6 +908,52 @@ export class PostgresStorage implements IStorage {
     } catch (err) {
       console.error('PostgresStorage.setEmailNotificationPreference error:', err);
       throw err;
+    }
+  }
+
+  // ==================== TVBox订阅token ====================
+
+  async getTvboxSubscribeToken(userName: string): Promise<string | null> {
+    try {
+      const result = await this.db
+        .prepare('SELECT tvbox_subscribe_token FROM users_v2 WHERE username = $1')
+        .bind(userName)
+        .first();
+
+      return result?.tvbox_subscribe_token || null;
+    } catch (err) {
+      console.error('PostgresStorage.getTvboxSubscribeToken error:', err);
+      return null;
+    }
+  }
+
+  async setTvboxSubscribeToken(userName: string, token: string): Promise<void> {
+    try {
+      await this.db
+        .prepare('UPDATE users_v2 SET tvbox_subscribe_token = $1 WHERE username = $2')
+        .bind(token, userName)
+        .run();
+
+      // 清除用户信息缓存
+      const { userInfoCache } = await import('./user-cache');
+      userInfoCache.delete(userName);
+    } catch (err) {
+      console.error('PostgresStorage.setTvboxSubscribeToken error:', err);
+      throw err;
+    }
+  }
+
+  async getUsernameByTvboxToken(token: string): Promise<string | null> {
+    try {
+      const result = await this.db
+        .prepare('SELECT username FROM users_v2 WHERE tvbox_subscribe_token = $1')
+        .bind(token)
+        .first();
+
+      return result?.username || null;
+    } catch (err) {
+      console.error('PostgresStorage.getUsernameByTvboxToken error:', err);
+      return null;
     }
   }
 

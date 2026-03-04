@@ -12,6 +12,7 @@ export interface PlayRecord {
   total_time: number; // 总进度（秒）
   save_time: number; // 记录保存时间（时间戳）
   search_title: string; // 搜索时使用的标题
+  new_episodes?: number; // 新增的剧集数量（用于显示更新提示）
 }
 
 // 收藏数据结构
@@ -160,6 +161,11 @@ export interface IStorage {
   setUserEmail?(userName: string, email: string): Promise<void>;
   getEmailNotificationPreference?(userName: string): Promise<boolean>;
   setEmailNotificationPreference?(userName: string, enabled: boolean): Promise<void>;
+
+  // TVBox订阅token相关
+  getTvboxSubscribeToken?(userName: string): Promise<string | null>;
+  setTvboxSubscribeToken?(userName: string, token: string): Promise<void>;
+  getUsernameByTvboxToken?(token: string): Promise<string | null>;
 }
 
 // 搜索结果数据结构
@@ -240,7 +246,8 @@ export type NotificationType =
   | 'system' // 系统通知
   | 'announcement' // 公告
   | 'movie_request' // 新求片通知（给管理员）
-  | 'request_fulfilled'; // 求片已上架通知（给求片用户）
+  | 'request_fulfilled' // 求片已上架通知（给求片用户）
+  | 'anime_subscription_update'; // 追番订阅更新
 
 // 通知数据结构
 export interface Notification {

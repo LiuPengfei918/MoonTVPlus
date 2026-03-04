@@ -35,13 +35,29 @@ export async function GET(
   try {
     const { searchParams } = new URL(request.url);
 
-    // 双重验证：TVBox Token 或 用户登录
+    // 双重验证：TVBox Token（全局或用户） 或 用户登录
     const requestToken = params.token;
-    const subscribeToken = process.env.TVBOX_SUBSCRIBE_TOKEN;
+    const globalToken = process.env.TVBOX_SUBSCRIBE_TOKEN;
     const authInfo = getAuthInfoFromCookie(request);
 
-    // 验证 TVBox Token
-    const hasValidToken = subscribeToken && requestToken === subscribeToken;
+    // 验证 TVBox Token（全局token或用户token）
+    let hasValidToken = false;
+    if (globalToken && requestToken === globalToken) {
+      // 全局token
+      hasValidToken = true;
+    } else {
+      // 检查是否是用户token
+      const { db } = await import('@/lib/db');
+      const username = await db.getUsernameByTvboxToken(requestToken);
+      if (username) {
+        // 检查用户是否被封禁
+        const userInfo = await db.getUserInfoV2(username);
+        if (userInfo && !userInfo.banned) {
+          hasValidToken = true;
+        }
+      }
+    }
+
     // 验证用户登录
     const hasValidAuth = authInfo && authInfo.username;
 
@@ -62,9 +78,12 @@ export async function GET(
 
     // 构建 Emby 原始播放链接（强制获取直接URL，避免代理循环）
     let embyStreamUrl = await client.getStreamUrl(itemId, true, true);
+	console.log(embyStreamUrl)
 
-    // 构建请求头，转发 Range 请求
-    const requestHeaders: HeadersInit = {};
+    // 构建请求头，转发 Range 请求，并添加自定义 User-Agent
+    const requestHeaders: HeadersInit = {
+      'User-Agent': client.getUserAgent(),
+    };
     const rangeHeader = request.headers.get('range');
     if (rangeHeader) {
       requestHeaders['Range'] = rangeHeader;
