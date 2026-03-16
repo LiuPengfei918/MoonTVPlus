@@ -41,7 +41,10 @@ export async function GET(
 
     // 验证 TVBox Token（全局token或用户token）
     let hasValidToken = false;
-    if (globalToken && requestToken === globalToken) {
+    if (requestToken === 'proxy') {
+      // 使用固定的 'proxy' token，跳过token验证，依赖用户登录验证
+      hasValidToken = false;
+    } else if (globalToken && requestToken === globalToken) {
       // 全局token
       hasValidToken = true;
     } else {
@@ -73,8 +76,8 @@ export async function GET(
     // 获取 Emby 客户端
     const client = await getEmbyClient(embyKey);
 
-    // 获取图片 URL
-    const imageUrl = client.getImageUrl(itemId, imageType, maxWidth);
+    // 获取图片 URL（强制获取直接URL，避免代理循环）
+    const imageUrl = client.getImageUrl(itemId, imageType, maxWidth, undefined, true);
 
     // 构建请求头，添加自定义 User-Agent
     const requestHeaders: HeadersInit = {

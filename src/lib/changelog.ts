@@ -11,6 +11,24 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "214.1.0",
+    date: "2026-03-10",
+    added: [
+      // 无新增内容
+    ],
+    changed: [
+    "emby兼容jellyfin",
+    "emby支持无密码登录",
+    "ai问片移除think块",
+    "ai问片可点击标题播放",
+    "优化ai问片流式处理，系统提示词增加日期，优化决策json提取"
+    ],
+    fixed: [
+    "修复filesystem模式取消下载不删除文件",
+    "修复未配置TVBOX_SUBSCRIBE_TOKEN不代理emby图片"
+    ]
+  },
+  {
     version: "214.0.0",
     date: "2026-03-04",
     added: [

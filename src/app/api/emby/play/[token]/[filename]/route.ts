@@ -42,7 +42,10 @@ export async function GET(
 
     // 验证 TVBox Token（全局token或用户token）
     let hasValidToken = false;
-    if (globalToken && requestToken === globalToken) {
+    if (requestToken === 'proxy') {
+      // 使用固定的 'proxy' token，跳过token验证，依赖用户登录验证
+      hasValidToken = false;
+    } else if (globalToken && requestToken === globalToken) {
       // 全局token
       hasValidToken = true;
     } else {
