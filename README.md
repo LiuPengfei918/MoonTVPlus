@@ -88,9 +88,11 @@
 
 ## 部署
 
-本项目**支持 Docker、Vercel 和 Cloudflare Workers 平台** 部署。
+本项目**支持 Docker、Vercel、Netlify 和 Cloudflare Workers 平台** 部署。
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/mtvpls/MoonTVPlus)
+
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/mtvpls/MoonTVPlus)
 
 **一键部署到 Zeabur**
 

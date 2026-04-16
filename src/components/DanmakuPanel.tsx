@@ -35,9 +35,12 @@ export default function DanmakuPanel({
   const [searchError, setSearchError] = useState<string | null>(null);
   const initializedRef = useRef(false); // 标记是否已初始化过
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const episodeGroupContainerRef = useRef<HTMLDivElement>(null);
+  const episodeGroupButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [episodeGroupIndex, setEpisodeGroupIndex] = useState(0);
   const [episodeDescending, setEpisodeDescending] = useState(false);
   const [episodeViewMode, setEpisodeViewMode] = useState<'list' | 'grid'>('list');
+  const [isEpisodeGroupHovered, setIsEpisodeGroupHovered] = useState(false);
   const episodesPerGroup = 50;
 
   // 搜索弹幕
@@ -230,6 +233,62 @@ export default function DanmakuPanel({
     return String(episodeNumber);
   }, []);
 
+  const preventPageScroll = useCallback((e: WheelEvent) => {
+    if (isEpisodeGroupHovered) {
+      e.preventDefault();
+    }
+  }, [isEpisodeGroupHovered]);
+
+  const handleEpisodeGroupWheel = useCallback((e: WheelEvent) => {
+    if (!isEpisodeGroupHovered || !episodeGroupContainerRef.current) {
+      return;
+    }
+
+    const container = episodeGroupContainerRef.current;
+    if (container.scrollWidth <= container.clientWidth) {
+      return;
+    }
+
+    e.preventDefault();
+    container.scrollBy({
+      left: e.deltaY * 2,
+      behavior: 'smooth',
+    });
+  }, [isEpisodeGroupHovered]);
+
+  useEffect(() => {
+    if (isEpisodeGroupHovered) {
+      document.addEventListener('wheel', preventPageScroll, { passive: false });
+      document.addEventListener('wheel', handleEpisodeGroupWheel, { passive: false });
+    } else {
+      document.removeEventListener('wheel', preventPageScroll);
+      document.removeEventListener('wheel', handleEpisodeGroupWheel);
+    }
+
+    return () => {
+      document.removeEventListener('wheel', preventPageScroll);
+      document.removeEventListener('wheel', handleEpisodeGroupWheel);
+    };
+  }, [handleEpisodeGroupWheel, isEpisodeGroupHovered, preventPageScroll]);
+
+  useEffect(() => {
+    const btn = episodeGroupButtonRefs.current[displayEpisodeGroupIndex];
+    const container = episodeGroupContainerRef.current;
+    if (!btn || !container) {
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    const btnLeft = btnRect.left - containerRect.left + container.scrollLeft;
+    const targetScrollLeft = btnLeft - (containerRect.width - btnRect.width) / 2;
+
+    container.scrollTo({
+      left: targetScrollLeft,
+      behavior: 'smooth',
+    });
+  }, [displayEpisodeGroupIndex]);
+
   return (
     <div className='flex h-full flex-col overflow-hidden'>
       {/* 搜索区域 - 固定在顶部 */}
@@ -348,12 +407,20 @@ export default function DanmakuPanel({
             {!isLoadingEpisodes && episodes.length > 0 && (
               <div className='pb-4'>
                 <div className='mb-4 border-b border-gray-300 dark:border-gray-700'>
-                  <div className='flex items-center gap-4 overflow-x-auto pb-3'>
+                  <div
+                    ref={episodeGroupContainerRef}
+                    className='flex items-center gap-4 overflow-x-auto pb-3'
+                    onMouseEnter={() => setIsEpisodeGroupHovered(true)}
+                    onMouseLeave={() => setIsEpisodeGroupHovered(false)}
+                  >
                     {episodeGroups.map((label, idx) => {
                       const isActive = idx === displayEpisodeGroupIndex;
                       return (
                         <button
                           key={label}
+                          ref={(el) => {
+                            episodeGroupButtonRefs.current[idx] = el;
+                          }}
                           onClick={() =>
                             setEpisodeGroupIndex(
                               episodeDescending ? episodeGroupCount - 1 - idx : idx

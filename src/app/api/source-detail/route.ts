@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
   const id = searchParams.get('id');
   const sourceCode = searchParams.get('source');
   const fileName = searchParams.get('fileName'); // 小雅源：用户点击的文件名
+  const title = searchParams.get('title');
 
   if (!id || !sourceCode) {
     return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
@@ -274,6 +275,141 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  if (sourceCode === 'quark-temp') {
+    try {
+      const config = await getConfig();
+      const openListConfig = config.OpenListConfig;
+
+      if (
+        !openListConfig ||
+        !openListConfig.Enabled ||
+        !openListConfig.URL ||
+        !openListConfig.Username ||
+        !openListConfig.Password
+      ) {
+        throw new Error('OpenList 未配置或未启用');
+      }
+
+      const { base58Decode } = await import('@/lib/utils');
+      const { OpenListClient } = await import('@/lib/openlist.client');
+      const { parseVideoFileName } = await import('@/lib/video-parser');
+
+      const folderPath = base58Decode(id);
+      if (!folderPath) {
+        throw new Error('无效的临时播放目录');
+      }
+
+      const client = new OpenListClient(
+        openListConfig.URL,
+        openListConfig.Username,
+        openListConfig.Password
+      );
+
+      const videoExtensions = ['.mp4', '.mkv', '.avi', '.m3u8', '.flv', '.ts', '.mov', '.wmv', '.webm', '.rmvb', '.rm', '.mpg', '.mpeg', '.3gp', '.f4v', '.m4v', '.vob'];
+
+      const listTempDirectory = async (currentPath: string, page: number, pageSize: number) => {
+        const load = async (refresh = false) => client.listDirectory(currentPath, page, pageSize, refresh);
+
+        let response = await load(page === 1);
+        if (response.code === 200) {
+          return response;
+        }
+
+        const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
+        await client.refreshDirectory(parentPath);
+        response = await load(true);
+
+        if (response.code !== 200) {
+          const message = response.message || '目录不存在或 OpenList 路径未映射';
+          throw new Error(`读取临时目录失败: ${message}（路径: ${currentPath}）`);
+        }
+
+        return response;
+      };
+
+      const collectFiles = async (currentPath: string): Promise<Array<{ path: string; name: string }>> => {
+        const allFiles: Array<{ path: string; name: string }> = [];
+        let currentPage = 1;
+        const pageSize = 100;
+        let hasMore = true;
+
+        while (hasMore) {
+          const response = await listTempDirectory(currentPath, currentPage, pageSize);
+
+          for (const item of response.data.content) {
+            const itemPath = `${currentPath}${currentPath.endsWith('/') ? '' : '/'}${item.name}`;
+            if (item.is_dir) {
+              const nested = await collectFiles(itemPath);
+              allFiles.push(...nested);
+            } else if (
+              !item.name.startsWith('.') &&
+              videoExtensions.some((ext) => item.name.toLowerCase().endsWith(ext))
+            ) {
+              allFiles.push({
+                path: itemPath,
+                name: item.name,
+              });
+            }
+          }
+
+          hasMore = !(
+            response.data.content.length < pageSize ||
+            currentPage * pageSize >= response.data.total
+          );
+          currentPage += 1;
+        }
+
+        return allFiles;
+      };
+
+      const files = await collectFiles(folderPath);
+      if (files.length === 0) {
+        throw new Error('临时播放目录中没有视频文件');
+      }
+
+      const episodes = files
+        .map((file, index) => {
+          const parsed = parseVideoFileName(file.name);
+          const fileDir = file.path.substring(0, file.path.lastIndexOf('/')) || '/';
+          return {
+            fileName: file.name,
+            fileDir,
+            episode: parsed.episode || index + 1,
+            title:
+              parsed.title ||
+              (parsed.episode ? `第${parsed.episode}集` : file.name),
+            isOVA: parsed.isOVA,
+          };
+        })
+        .sort((a, b) => {
+          if (a.isOVA && !b.isOVA) return 1;
+          if (!a.isOVA && b.isOVA) return -1;
+          return a.episode !== b.episode
+            ? a.episode - b.episode
+            : a.fileName.localeCompare(b.fileName);
+        });
+
+      return NextResponse.json({
+        source: 'quark-temp',
+        source_name: '夸克临时播放',
+        id,
+        title: title || folderPath.split('/').filter(Boolean).pop() || '夸克临时播放',
+        poster: '',
+        year: '',
+        douban_id: 0,
+        desc: `临时播放目录：${folderPath}`,
+        episodes: episodes.map((ep) => `/api/openlist/play?folder=${encodeURIComponent(ep.fileDir)}&fileName=${encodeURIComponent(ep.fileName)}`),
+        episodes_titles: episodes.map((ep) => ep.title),
+        proxyMode: false,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: (error as Error).message },
+        { status: 500 }
+      );
+    }
+  }
+
   // 特殊处理 openlist 源 - 直接调用 /api/detail
   if (sourceCode === 'openlist') {
     try {
@@ -340,8 +476,9 @@ export async function GET(request: NextRequest) {
       let currentPage = 1;
       const pageSize = 100;
       let total = 0;
+      let hasMore = true;
 
-      while (true) {
+      while (hasMore) {
         const listResponse = await client.listDirectory(folderPath, currentPage, pageSize);
 
         if (listResponse.code !== 200) {
@@ -351,10 +488,7 @@ export async function GET(request: NextRequest) {
         total = listResponse.data.total;
         allFiles.push(...listResponse.data.content);
 
-        if (allFiles.length >= total) {
-          break;
-        }
-
+        hasMore = allFiles.length < total;
         currentPage++;
       }
 

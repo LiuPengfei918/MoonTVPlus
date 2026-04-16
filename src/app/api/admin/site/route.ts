@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
       DoubanImageProxy,
       DisableYellowFilter,
       FluidSearch,
+      DanmakuSourceType,
       DanmakuApiBase,
       DanmakuApiToken,
       TMDBApiKey,
@@ -58,6 +59,8 @@ export async function POST(request: NextRequest) {
       CustomAdFilterCode,
       CustomAdFilterVersion,
       EnableRegistration,
+      RequireRegistrationInviteCode,
+      RegistrationInviteCode,
       RegistrationRequireTurnstile,
       LoginRequireTurnstile,
       TurnstileSiteKey,
@@ -84,6 +87,7 @@ export async function POST(request: NextRequest) {
       DoubanImageProxy: string;
       DisableYellowFilter: boolean;
       FluidSearch: boolean;
+      DanmakuSourceType?: 'builtin' | 'custom';
       DanmakuApiBase: string;
       DanmakuApiToken: string;
       TMDBApiKey?: string;
@@ -103,6 +107,8 @@ export async function POST(request: NextRequest) {
       CustomAdFilterCode?: string;
       CustomAdFilterVersion?: number;
       EnableRegistration?: boolean;
+      RequireRegistrationInviteCode?: boolean;
+      RegistrationInviteCode?: string;
       RegistrationRequireTurnstile?: boolean;
       LoginRequireTurnstile?: boolean;
       TurnstileSiteKey?: string;
@@ -132,6 +138,9 @@ export async function POST(request: NextRequest) {
       typeof DoubanImageProxy !== 'string' ||
       typeof DisableYellowFilter !== 'boolean' ||
       typeof FluidSearch !== 'boolean' ||
+      (DanmakuSourceType !== undefined &&
+        DanmakuSourceType !== 'builtin' &&
+        DanmakuSourceType !== 'custom') ||
       typeof DanmakuApiBase !== 'string' ||
       typeof DanmakuApiToken !== 'string' ||
       (TMDBApiKey !== undefined && typeof TMDBApiKey !== 'string') ||
@@ -148,6 +157,8 @@ export async function POST(request: NextRequest) {
       (CustomAdFilterCode !== undefined && typeof CustomAdFilterCode !== 'string') ||
       (CustomAdFilterVersion !== undefined && typeof CustomAdFilterVersion !== 'number') ||
       (EnableRegistration !== undefined && typeof EnableRegistration !== 'boolean') ||
+      (RequireRegistrationInviteCode !== undefined && typeof RequireRegistrationInviteCode !== 'boolean') ||
+      (RegistrationInviteCode !== undefined && typeof RegistrationInviteCode !== 'string') ||
       (RegistrationRequireTurnstile !== undefined && typeof RegistrationRequireTurnstile !== 'boolean') ||
       (LoginRequireTurnstile !== undefined && typeof LoginRequireTurnstile !== 'boolean') ||
       (TurnstileSiteKey !== undefined && typeof TurnstileSiteKey !== 'string') ||
@@ -189,6 +200,7 @@ export async function POST(request: NextRequest) {
       DoubanImageProxy,
       DisableYellowFilter,
       FluidSearch,
+      DanmakuSourceType,
       DanmakuApiBase,
       DanmakuApiToken,
       TMDBApiKey,
@@ -208,6 +220,8 @@ export async function POST(request: NextRequest) {
       CustomAdFilterCode,
       CustomAdFilterVersion,
       EnableRegistration,
+      RequireRegistrationInviteCode,
+      RegistrationInviteCode,
       RegistrationRequireTurnstile,
       LoginRequireTurnstile,
       TurnstileSiteKey,

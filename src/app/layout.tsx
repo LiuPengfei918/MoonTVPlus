@@ -75,6 +75,7 @@ export default async function RootLayout({
   let progressThumbPresetId = '';
   let progressThumbCustomUrl = '';
   let enableRegistration = false;
+  let requireRegistrationInviteCode = false;
   let loginRequireTurnstile = false;
   let registrationRequireTurnstile = false;
   let turnstileSiteKey = '';
@@ -125,6 +126,7 @@ export default async function RootLayout({
     progressThumbPresetId = config.ThemeConfig?.progressThumbPresetId || '';
     progressThumbCustomUrl = config.ThemeConfig?.progressThumbCustomUrl || '';
     enableRegistration = config.SiteConfig.EnableRegistration || false;
+    requireRegistrationInviteCode = config.SiteConfig.RequireRegistrationInviteCode || false;
     loginRequireTurnstile = config.SiteConfig.LoginRequireTurnstile || false;
     registrationRequireTurnstile = config.SiteConfig.RegistrationRequireTurnstile || false;
     turnstileSiteKey = config.SiteConfig.TurnstileSiteKey || '';
@@ -195,6 +197,7 @@ export default async function RootLayout({
     PROGRESS_THUMB_PRESET_ID: progressThumbPresetId,
     PROGRESS_THUMB_CUSTOM_URL: progressThumbCustomUrl,
     ENABLE_REGISTRATION: enableRegistration,
+    REQUIRE_REGISTRATION_INVITE_CODE: requireRegistrationInviteCode,
     LOGIN_REQUIRE_TURNSTILE: loginRequireTurnstile,
     REGISTRATION_REQUIRE_TURNSTILE: registrationRequireTurnstile,
     TURNSTILE_SITE_KEY: turnstileSiteKey,

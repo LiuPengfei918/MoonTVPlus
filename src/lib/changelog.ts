@@ -11,6 +11,26 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: "217.0.0",
+    date: "2026-04-10",
+    added: [
+    "新增注册邀请码功能",
+    "增加弹幕内置源",
+    "增加netlify部署支持",
+    "观影室增加屏幕共享功能",
+    "详情面板新增照片墙功能",
+    "新增夸克网盘的转存与播放功能",
+    "豆瓣数据源增加备用源功能"
+    ],
+    changed: [
+    "移除音乐功能"
+    ],
+    fixed: [
+    "修复弹幕选集分组无法鼠标滑轮滚动",
+    "修复高级推荐报错无限刷新"
+    ]
+  },
+  {
     version: "216.0.0",
     date: "2026-03-30",
     added: [

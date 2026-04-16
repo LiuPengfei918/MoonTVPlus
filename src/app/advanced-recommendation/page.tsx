@@ -110,6 +110,7 @@ export default function AdvancedRecommendationPage() {
         setHasMore(Number(data.page || page) < Number(data.pageCount || 1));
       } catch (err) {
         setError(err instanceof Error ? err.message : '获取推荐失败');
+        setHasMore(false);
       } finally {
         setIsLoadingVideos(false);
       }
@@ -119,7 +120,7 @@ export default function AdvancedRecommendationPage() {
   }, [selectedSource, page]);
 
   useEffect(() => {
-    if (!loadMoreRef.current || !hasMore || isLoadingVideos) return;
+    if (!loadMoreRef.current || !hasMore || isLoadingVideos || !!error) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -132,7 +133,7 @@ export default function AdvancedRecommendationPage() {
 
     observer.observe(loadMoreRef.current);
     return () => observer.disconnect();
-  }, [hasMore, isLoadingVideos]);
+  }, [error, hasMore, isLoadingVideos]);
 
   return (
     <PageLayout activePath='/advanced-recommendation'>

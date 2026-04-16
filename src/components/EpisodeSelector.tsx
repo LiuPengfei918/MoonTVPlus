@@ -12,10 +12,11 @@ import React, {
 
 import type { DanmakuComment,DanmakuSelection } from '@/lib/danmaku/types';
 import { EpisodeFilterConfig,SearchResult } from '@/lib/types';
-import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
+import { getVideoResolutionFromM3u8 } from '@/lib/utils';
 
 import DanmakuPanel from '@/components/DanmakuPanel';
 import EpisodeFilterSettings from '@/components/EpisodeFilterSettings';
+import ProxyImage from '@/components/ProxyImage';
 
 // 定义视频信息类型
 interface VideoInfo {
@@ -870,10 +871,11 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                           {source.source === 'directplay' ? (
                             <LinkIcon className='w-6 h-6 text-blue-500' />
                           ) : source.poster ? (
-                            <img
-                              src={processImageUrl(source.poster)}
+                            <ProxyImage
+                              originalSrc={source.poster}
                               alt={source.title}
                               className='w-full h-full object-cover'
+                              retryOnError={false}
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
                                 target.style.display = 'none';
@@ -940,7 +942,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                           {/* 源名称和集数信息 - 垂直居中 */}
                           <div className='flex items-center justify-between'>
                             <span className={`text-xs px-2 py-1 border rounded text-gray-700 dark:text-gray-300 ${
-                              source.source === 'xiaoya' ? 'border-blue-500' : source.source === 'openlist' || source.source === 'emby' || source.source?.startsWith('emby_')
+                              source.source === 'xiaoya' ? 'border-blue-500' : source.source === 'quark-temp' ? 'border-purple-500' : source.source === 'openlist' || source.source === 'emby' || source.source?.startsWith('emby_')
                            ? 'border-yellow-500'
                                 : 'border-gray-500/60'
                       }`}>

@@ -118,10 +118,17 @@ export const UserMenu: React.FC = () => {
   const [tmdbBackdropDisabled, setTmdbBackdropDisabled] = useState(false);
   const [enableTrailers, setEnableTrailers] = useState(false);
   const [doubanDataSource, setDoubanDataSource] = useState('cmliussss-cdn-tencent');
+  const [doubanDataSourceBackup, setDoubanDataSourceBackup] = useState('direct');
   const [doubanImageProxyType, setDoubanImageProxyType] = useState('cmliussss-cdn-tencent');
+  const [doubanImageProxyTypeBackup, setDoubanImageProxyTypeBackup] = useState('server');
   const [doubanImageProxyUrl, setDoubanImageProxyUrl] = useState('');
+  const [doubanProxyUrlBackup, setDoubanProxyUrlBackup] = useState('');
+  const [doubanImageProxyUrlBackup, setDoubanImageProxyUrlBackup] = useState('');
   const [isDoubanDropdownOpen, setIsDoubanDropdownOpen] = useState(false);
+  const [isDoubanBackupDropdownOpen, setIsDoubanBackupDropdownOpen] = useState(false);
   const [isDoubanImageProxyDropdownOpen, setIsDoubanImageProxyDropdownOpen] =
+    useState(false);
+  const [isDoubanImageProxyBackupDropdownOpen, setIsDoubanImageProxyBackupDropdownOpen] =
     useState(false);
   const [bufferStrategy, setBufferStrategy] = useState('medium');
   const [nextEpisodePreCache, setNextEpisodePreCache] = useState(true);
@@ -440,6 +447,16 @@ export const UserMenu: React.FC = () => {
         setDoubanProxyUrl(defaultDoubanProxy);
       }
 
+      const savedDoubanDataSourceBackup = localStorage.getItem(
+        'doubanDataSourceBackup'
+      );
+      setDoubanDataSourceBackup(savedDoubanDataSourceBackup || 'direct');
+
+      const savedDoubanProxyUrlBackup = localStorage.getItem(
+        'doubanProxyUrlBackup'
+      );
+      setDoubanProxyUrlBackup(savedDoubanProxyUrlBackup || '');
+
       const savedDoubanImageProxyType = localStorage.getItem(
         'doubanImageProxyType'
       );
@@ -461,6 +478,16 @@ export const UserMenu: React.FC = () => {
       } else if (defaultDoubanImageProxyUrl) {
         setDoubanImageProxyUrl(defaultDoubanImageProxyUrl);
       }
+
+      const savedDoubanImageProxyTypeBackup = localStorage.getItem(
+        'doubanImageProxyTypeBackup'
+      );
+      setDoubanImageProxyTypeBackup(savedDoubanImageProxyTypeBackup || 'server');
+
+      const savedDoubanImageProxyUrlBackup = localStorage.getItem(
+        'doubanImageProxyUrlBackup'
+      );
+      setDoubanImageProxyUrlBackup(savedDoubanImageProxyUrlBackup || '');
 
       const savedTmdbImageBaseUrl = localStorage.getItem('tmdbImageBaseUrl');
       if (savedTmdbImageBaseUrl !== null) {
@@ -756,6 +783,23 @@ export const UserMenu: React.FC = () => {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      if (isDoubanBackupDropdownOpen) {
+        const target = event.target as Element;
+        if (!target.closest('[data-dropdown="douban-datasource-backup"]')) {
+          setIsDoubanBackupDropdownOpen(false);
+        }
+      }
+    };
+
+    if (isDoubanBackupDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () =>
+        document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isDoubanBackupDropdownOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
       if (isDoubanImageProxyDropdownOpen) {
         const target = event.target as Element;
         if (!target.closest('[data-dropdown="douban-image-proxy"]')) {
@@ -770,6 +814,23 @@ export const UserMenu: React.FC = () => {
         document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [isDoubanImageProxyDropdownOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isDoubanImageProxyBackupDropdownOpen) {
+        const target = event.target as Element;
+        if (!target.closest('[data-dropdown="douban-image-proxy-backup"]')) {
+          setIsDoubanImageProxyBackupDropdownOpen(false);
+        }
+      }
+    };
+
+    if (isDoubanImageProxyBackupDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () =>
+        document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isDoubanImageProxyBackupDropdownOpen]);
 
   const handleMenuClick = () => {
     setIsOpen(!isOpen);
@@ -1049,6 +1110,13 @@ export const UserMenu: React.FC = () => {
     }
   };
 
+  const handleDoubanDataSourceBackupChange = (value: string) => {
+    setDoubanDataSourceBackup(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('doubanDataSourceBackup', value);
+    }
+  };
+
   const handleDoubanImageProxyTypeChange = (value: string) => {
     setDoubanImageProxyType(value);
     if (typeof window !== 'undefined') {
@@ -1056,10 +1124,31 @@ export const UserMenu: React.FC = () => {
     }
   };
 
+  const handleDoubanImageProxyTypeBackupChange = (value: string) => {
+    setDoubanImageProxyTypeBackup(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('doubanImageProxyTypeBackup', value);
+    }
+  };
+
+  const handleDoubanProxyUrlBackupChange = (value: string) => {
+    setDoubanProxyUrlBackup(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('doubanProxyUrlBackup', value);
+    }
+  };
+
   const handleDoubanImageProxyUrlChange = (value: string) => {
     setDoubanImageProxyUrl(value);
     if (typeof window !== 'undefined') {
       localStorage.setItem('doubanImageProxyUrl', value);
+    }
+  };
+
+  const handleDoubanImageProxyUrlBackupChange = (value: string) => {
+    setDoubanImageProxyUrlBackup(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('doubanImageProxyUrlBackup', value);
     }
   };
 
@@ -1240,8 +1329,12 @@ export const UserMenu: React.FC = () => {
     setEnableTrailers(false);
     setDoubanProxyUrl(defaultDoubanProxy);
     setDoubanDataSource(defaultDoubanProxyType);
+    setDoubanDataSourceBackup('direct');
+    setDoubanProxyUrlBackup('');
     setDoubanImageProxyType(defaultDoubanImageProxyType);
     setDoubanImageProxyUrl(defaultDoubanImageProxyUrl);
+    setDoubanImageProxyTypeBackup('server');
+    setDoubanImageProxyUrlBackup('');
     setTmdbImageBaseUrl('https://image.tmdb.org');
     setBufferStrategy('medium');
     setNextEpisodePreCache(true);
@@ -1261,8 +1354,12 @@ export const UserMenu: React.FC = () => {
       localStorage.setItem('enableTrailers', 'false');
       localStorage.setItem('doubanProxyUrl', defaultDoubanProxy);
       localStorage.setItem('doubanDataSource', defaultDoubanProxyType);
+      localStorage.setItem('doubanDataSourceBackup', 'direct');
+      localStorage.setItem('doubanProxyUrlBackup', '');
       localStorage.setItem('doubanImageProxyType', defaultDoubanImageProxyType);
       localStorage.setItem('doubanImageProxyUrl', defaultDoubanImageProxyUrl);
+      localStorage.setItem('doubanImageProxyTypeBackup', 'server');
+      localStorage.setItem('doubanImageProxyUrlBackup', '');
       localStorage.setItem('tmdbImageBaseUrl', 'https://image.tmdb.org');
       localStorage.setItem('bufferStrategy', 'medium');
       localStorage.setItem('nextEpisodePreCache', 'true');
@@ -1723,6 +1820,96 @@ export const UserMenu: React.FC = () => {
                         value={doubanProxyUrl}
                         onChange={(e) => handleDoubanProxyUrlChange(e.target.value)}
                       />
+                      {!doubanProxyUrl.trim() && (
+                        <p className='text-xs text-amber-600 dark:text-amber-400 mt-1'>
+                          未填写地址时将自动按直连处理
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className='space-y-3'>
+                    <div>
+                      <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                        豆瓣数据备用渠道
+                      </h4>
+                      <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                        主渠道失败后自动切换，默认直连
+                      </p>
+                    </div>
+                    <div
+                      className='relative'
+                      data-dropdown='douban-datasource-backup'
+                    >
+                      <button
+                        type='button'
+                        onClick={() =>
+                          setIsDoubanBackupDropdownOpen(!isDoubanBackupDropdownOpen)
+                        }
+                        className='w-full px-3 py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm hover:border-gray-400 dark:hover:border-gray-500 text-left'
+                      >
+                        {
+                          doubanDataSourceOptions.find(
+                            (option) => option.value === doubanDataSourceBackup
+                          )?.label
+                        }
+                      </button>
+                      <div className='absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none'>
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${isDoubanBackupDropdownOpen ? 'rotate-180' : ''
+                            }`}
+                        />
+                      </div>
+                      {isDoubanBackupDropdownOpen && (
+                        <div className='absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto'>
+                          {doubanDataSourceOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              type='button'
+                              onClick={() => {
+                                handleDoubanDataSourceBackupChange(option.value);
+                                setIsDoubanBackupDropdownOpen(false);
+                              }}
+                              className={`w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${doubanDataSourceBackup === option.value
+                                ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                                : 'text-gray-900 dark:text-gray-100'
+                                }`}
+                            >
+                              <span className='truncate'>{option.label}</span>
+                              {doubanDataSourceBackup === option.value && (
+                                <Check className='w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0 ml-2' />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {doubanDataSourceBackup === 'custom' && (
+                    <div className='space-y-3'>
+                      <div>
+                        <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                          豆瓣备用代理地址
+                        </h4>
+                        <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                          备用渠道为自定义代理时生效
+                        </p>
+                      </div>
+                      <input
+                        type='text'
+                        className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 shadow-sm hover:border-gray-400 dark:hover:border-gray-500'
+                        placeholder='例如: https://proxy.example.com/fetch?url='
+                        value={doubanProxyUrlBackup}
+                        onChange={(e) =>
+                          handleDoubanProxyUrlBackupChange(e.target.value)
+                        }
+                      />
+                      {!doubanProxyUrlBackup.trim() && (
+                        <p className='text-xs text-amber-600 dark:text-amber-400 mt-1'>
+                          未填写地址时备用渠道将自动按直连处理
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1833,6 +2020,98 @@ export const UserMenu: React.FC = () => {
                           handleDoubanImageProxyUrlChange(e.target.value)
                         }
                       />
+                      {!doubanImageProxyUrl.trim() && (
+                        <p className='text-xs text-amber-600 dark:text-amber-400 mt-1'>
+                          未填写地址时将自动按服务器代理处理
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className='space-y-3'>
+                    <div>
+                      <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                        豆瓣图片备用渠道
+                      </h4>
+                      <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                        主图片渠道失败后自动切换，默认服务器代理
+                      </p>
+                    </div>
+                    <div
+                      className='relative'
+                      data-dropdown='douban-image-proxy-backup'
+                    >
+                      <button
+                        type='button'
+                        onClick={() =>
+                          setIsDoubanImageProxyBackupDropdownOpen(
+                            !isDoubanImageProxyBackupDropdownOpen
+                          )
+                        }
+                        className='w-full px-3 py-2.5 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm hover:border-gray-400 dark:hover:border-gray-500 text-left'
+                      >
+                        {
+                          doubanImageProxyTypeOptions.find(
+                            (option) => option.value === doubanImageProxyTypeBackup
+                          )?.label
+                        }
+                      </button>
+                      <div className='absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none'>
+                        <ChevronDown
+                          className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${isDoubanImageProxyBackupDropdownOpen ? 'rotate-180' : ''
+                            }`}
+                        />
+                      </div>
+                      {isDoubanImageProxyBackupDropdownOpen && (
+                        <div className='absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto'>
+                          {doubanImageProxyTypeOptions.map((option) => (
+                            <button
+                              key={option.value}
+                              type='button'
+                              onClick={() => {
+                                handleDoubanImageProxyTypeBackupChange(option.value);
+                                setIsDoubanImageProxyBackupDropdownOpen(false);
+                              }}
+                              className={`w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${doubanImageProxyTypeBackup === option.value
+                                ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                                : 'text-gray-900 dark:text-gray-100'
+                                }`}
+                            >
+                              <span className='truncate'>{option.label}</span>
+                              {doubanImageProxyTypeBackup === option.value && (
+                                <Check className='w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0 ml-2' />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {doubanImageProxyTypeBackup === 'custom' && (
+                    <div className='space-y-3'>
+                      <div>
+                        <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                          豆瓣图片备用代理地址
+                        </h4>
+                        <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                          备用图片渠道为自定义代理时生效
+                        </p>
+                      </div>
+                      <input
+                        type='text'
+                        className='w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 shadow-sm hover:border-gray-400 dark:hover:border-gray-500'
+                        placeholder='例如: https://proxy.example.com/fetch?url='
+                        value={doubanImageProxyUrlBackup}
+                        onChange={(e) =>
+                          handleDoubanImageProxyUrlBackupChange(e.target.value)
+                        }
+                      />
+                      {!doubanImageProxyUrlBackup.trim() && (
+                        <p className='text-xs text-amber-600 dark:text-amber-400 mt-1'>
+                          未填写地址时备用图片渠道将自动按服务器代理处理
+                        </p>
+                      )}
                     </div>
                   )}
 

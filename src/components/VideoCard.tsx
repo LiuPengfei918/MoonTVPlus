@@ -21,7 +21,7 @@ import {
   saveFavorite,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
-import { processImageUrl, base58Decode } from '@/lib/utils';
+import { processImageUrl, base58Decode, tryApplyDoubanImageFallback } from '@/lib/utils';
 import { useLongPress } from '@/hooks/useLongPress';
 
 import AIChatPanel from '@/components/AIChatPanel';
@@ -750,8 +750,12 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
                 setShowImageViewer(true);
               }}
               onError={(e) => {
+                const img = e.currentTarget as HTMLImageElement;
+                if (tryApplyDoubanImageFallback(img, actualPoster)) {
+                  return;
+                }
+
                 // 图片加载失败时的重试机制
-                const img = e.target as HTMLImageElement;
                 if (!img.dataset.retried) {
                   img.dataset.retried = 'true';
                   setTimeout(() => {
@@ -1043,7 +1047,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
             >
               <span
                 className={`inline-block border rounded px-1 py-0.5 text-[8px] text-white/90 bg-black/60 ${
-                  actualSource === 'xiaoya' ? 'border-blue-500' : actualSource === 'openlist' || actualSource === 'emby' || actualSource?.startsWith('emby_') ? 'border-yellow-500' : origin === 'live' ? 'border-red-500' : 'border-white/60'
+                  actualSource === 'xiaoya' ? 'border-blue-500' : actualSource === 'quark-temp' ? 'border-purple-500' : actualSource === 'openlist' || actualSource === 'emby' || actualSource?.startsWith('emby_') ? 'border-yellow-500' : origin === 'live' ? 'border-red-500' : 'border-white/60'
                 }`}
                 style={{
                   WebkitUserSelect: 'none',
@@ -1367,7 +1371,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
                       {config.showSourceName && source_name && !cmsData && (
                         <span
                           className={`inline-block border rounded px-1 py-0.5 text-[8px] text-white/90 bg-black/30 backdrop-blur-sm ${
-                            actualSource === 'xiaoya' ? 'border-blue-500' : actualSource === 'openlist' || actualSource === 'emby' || actualSource?.startsWith('emby_') ? 'border-yellow-500' : 'border-white/60'
+                            actualSource === 'xiaoya' ? 'border-blue-500' : actualSource === 'quark-temp' ? 'border-purple-500' : actualSource === 'openlist' || actualSource === 'emby' || actualSource?.startsWith('emby_') ? 'border-yellow-500' : 'border-white/60'
                           }`}
                           style={{
                             WebkitUserSelect: 'none',
@@ -1598,7 +1602,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
         <ImageViewer
           isOpen={showImageViewer}
           onClose={() => setShowImageViewer(false)}
-          imageUrl={processImageUrl(actualPoster)}
+          imageUrl={actualPoster}
           alt={actualTitle}
         />
       )}
