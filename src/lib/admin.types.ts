@@ -20,6 +20,7 @@ export interface AdminConfig {
     DanmakuSourceType?: 'builtin' | 'custom';
     DanmakuApiBase: string;
     DanmakuApiToken: string;
+    DanmakuAutoLoadDefault?: boolean; // 是否默认自动加载弹幕（用户可在本地覆盖）
     // TMDB配置
     TMDBApiKey?: string;
     TMDBProxy?: string;
@@ -242,6 +243,16 @@ export interface AdminConfig {
     Password?: string; // 密码认证（备选）
     DisableVideoPreview?: boolean; // 禁用预览视频，直接返回直连链接
   };
+  SuwayomiConfig?: {
+    Enabled: boolean; // 是否启用漫画展馆
+    ServerURL: string; // Suwayomi 服务地址
+    AuthMode?: 'none' | 'basic_auth' | 'simple_login'; // 认证模式
+    Username?: string; // 登录用户名
+    Password?: string; // 登录密码
+    DefaultLang?: string; // 默认语言，如 zh
+    SourceIds?: string[]; // 限制可用源
+    MaxSources?: number; // 搜索时最多查询多少个源
+  };
   EmailConfig?: {
     enabled: boolean; // 是否启用邮件通知
     provider: 'smtp' | 'resend'; // 邮件发送方式
@@ -261,17 +272,20 @@ export interface AdminConfig {
     };
   };
   MusicConfig?: {
-    // TuneHub音乐配置
-    TuneHubEnabled?: boolean; // 启用音乐功能
-    TuneHubBaseUrl?: string; // TuneHub API地址
-    TuneHubApiKey?: string; // TuneHub API Key
-    // OpenList缓存配置
-    OpenListCacheEnabled?: boolean; // 启用OpenList缓存
-    OpenListCacheURL?: string; // OpenList服务器地址
-    OpenListCacheUsername?: string; // OpenList用户名
-    OpenListCachePassword?: string; // OpenList密码
-    OpenListCachePath?: string; // OpenList缓存目录路径
-    OpenListCacheProxyEnabled?: boolean; // 启用缓存代理返回（默认开启）
+    Enabled?: boolean; // 启用音乐功能
+    BaseUrl?: string; // lxserver 地址
+    Token?: string; // lxserver x-user-token
+    ProxyEnabled?: boolean; // 是否走 stream 代理
+    // 兼容旧代码的遗留字段（待删除）
+    TuneHubEnabled?: boolean;
+    TuneHubBaseUrl?: string;
+    TuneHubApiKey?: string;
+    OpenListCacheEnabled?: boolean;
+    OpenListCacheURL?: string;
+    OpenListCacheUsername?: string;
+    OpenListCachePassword?: string;
+    OpenListCachePath?: string;
+    OpenListCacheProxyEnabled?: boolean;
   };
   AnimeSubscriptionConfig?: {
     Enabled: boolean; // 是否启用追番功能

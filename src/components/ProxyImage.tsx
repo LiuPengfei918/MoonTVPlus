@@ -16,6 +16,8 @@ const ProxyImage: React.FC<ProxyImageProps> = ({
   displaySrc,
   retryDelay = 2000,
   retryOnError = true,
+  loading = 'lazy',
+  decoding = 'async',
   onError,
   src: _src,
   ...props
@@ -41,6 +43,8 @@ const ProxyImage: React.FC<ProxyImageProps> = ({
     <img
       {...props}
       src={displaySrc || processImageUrl(originalSrc)}
+      loading={loading}
+      decoding={decoding}
       onError={handleError}
     />
   );

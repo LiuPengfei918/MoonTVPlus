@@ -232,6 +232,26 @@ volumes:
   kvrocks-data:
 ```
 
+### SQLite 存储
+
+```yml
+services:
+  moontv-core:
+    image: ghcr.io/mtvpls/moontvplus:latest
+    container_name: moontv-core
+    restart: on-failure
+    ports:
+      - '3000:3000'
+    environment:
+      - USERNAME=admin
+      - PASSWORD=admin_password
+      - NEXT_PUBLIC_STORAGE_TYPE=d1
+      - SQLITE_DB_PATH=/app/.data/moontv.db
+    volumes:
+      - ./data:/app/.data
+```
+
+
 ### Redis 存储（有一定的丢数据风险）
 
 ```yml
@@ -289,7 +309,7 @@ services:
 
 #### Lite 镜像说明
 
-`ghcr.io/mtvpls/moontvplus-lite:latest` 为更小的镜像，但不支持启动内置观影室服务。
+`ghcr.io/mtvpls/moontvplus-lite:latest` 为更小的镜像，但不支持启动内置观影室服务，也不支持 SQLite（`NEXT_PUBLIC_STORAGE_TYPE=d1`）自动初始化方案。
 
 示例：
 
@@ -417,6 +437,7 @@ dockge/komodo 等 docker compose UI 也有自动更新功能
 | VIDEOINFO_CACHE_MINUTES                  | 私人影库视频信息在内存中的缓存时长（分钟）                   | 正整数                      | 1440（1天）                                                  |
 | NEXT_PUBLIC_ENABLE_SOURCE_SEARCH         | 是否开启源站寻片功能                                         | true/false                  | true                                                         |
 | MAX_PLAY_RECORDS_PER_USER                | 单个用户播放记录清理阈值（超过此数量将自动清理旧记录）       | 正整数                      | 100                                                          |
+| MAX_MANGA_HISTORY_PER_USER              | 单个用户漫画阅读历史保留上限 | 正整数                      | 100                                                          |
 | INIT_CONFIG                              | 初始配置（JSON 格式，包含 api_site、custom_category、lives 等） | JSON 字符串                 | (空)                                                         |
 | CONFIG_SUBSCRIPTION_URL                  | 配置订阅 URL（Base58 编码的配置文件地址，优先级高于 INIT_CONFIG） | URL                         | (空)                                                         |
 | TMDB_API_KEY                             | TMDB API 密钥                                                | 任意字符串                  | (空)                                                         |

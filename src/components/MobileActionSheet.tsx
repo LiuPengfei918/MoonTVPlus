@@ -1,6 +1,6 @@
 import { Radio, X } from 'lucide-react';
 import Image from 'next/image';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ActionItem {
@@ -46,6 +46,7 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const backdropPressStarted = useRef(false);
 
   // 确保组件在客户端挂载后才渲染 Portal
   useEffect(() => {
@@ -58,6 +59,7 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
     let timer: NodeJS.Timeout;
 
     if (isOpen) {
+      backdropPressStarted.current = false;
       setIsVisible(true);
       // 使用双重 requestAnimationFrame 确保DOM完全渲染
       animationId = requestAnimationFrame(() => {
@@ -66,6 +68,7 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
         });
       });
     } else {
+      backdropPressStarted.current = false;
       setIsAnimating(false);
       // 等待动画完成后隐藏组件
       timer = setTimeout(() => {
@@ -171,6 +174,23 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
     }
   };
 
+  const armBackdropClose = () => {
+    backdropPressStarted.current = true;
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // 菜单打开前那次长按的松手会产生一个“悬空 click”，
+    // 这次 click 并不是从遮罩开始按下的，所以不能拿来关闭菜单。
+    if (!backdropPressStarted.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    backdropPressStarted.current = false;
+    onClose();
+  };
+
   const content = (
     <div
       className="fixed inset-0 z-[9999] flex items-end justify-center"
@@ -187,7 +207,9 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
       <div
         className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ease-out ${isAnimating ? 'opacity-100' : 'opacity-0'
           }`}
-        onClick={onClose}
+        onPointerDown={armBackdropClose}
+        onTouchStart={armBackdropClose}
+        onClick={handleBackdropClick}
         onTouchMove={(e) => {
           // 只阻止滚动，允许其他触摸事件（包括点击）
           e.preventDefault();

@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
       Version: CURRENT_VERSION,
       WatchRoom: watchRoomConfig,
       EnableOfflineDownload: process.env.NEXT_PUBLIC_ENABLE_OFFLINE_DOWNLOAD === 'true',
+      DanmakuAutoLoadDefault: true,
     });
   }
 
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
     EnableOIDCLogin: config.SiteConfig.EnableOIDCLogin || false,
     EnableOIDCRegistration: config.SiteConfig.EnableOIDCRegistration || false,
     OIDCButtonText: config.SiteConfig.OIDCButtonText || '',
+    DanmakuAutoLoadDefault: config.SiteConfig.DanmakuAutoLoadDefault !== false,
     loginBackgroundImage: config.ThemeConfig?.loginBackgroundImage || '',
     registerBackgroundImage: config.ThemeConfig?.registerBackgroundImage || '',
     progressThumbType: config.ThemeConfig?.progressThumbType || 'default',

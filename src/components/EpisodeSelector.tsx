@@ -11,6 +11,9 @@ import React, {
 } from 'react';
 
 import type { DanmakuComment,DanmakuSelection } from '@/lib/danmaku/types';
+import { generateStorageKey, getCachedPlayRecordsSnapshot } from '@/lib/db.client';
+import { isEpisodeHiddenByFilter } from '@/lib/episode-filter';
+import { loadAllLocalEpisodeProgressRecords } from '@/lib/episode-progress';
 import { EpisodeFilterConfig,SearchResult } from '@/lib/types';
 import { getVideoResolutionFromM3u8 } from '@/lib/utils';
 
@@ -42,6 +45,7 @@ interface EpisodeSelectorProps {
   onSourceChange?: (source: string, id: string, title: string) => void;
   currentSource?: string;
   currentId?: string;
+  episodeProgressContentKey?: string;
   videoTitle?: string;
   videoYear?: string;
   availableSources?: SearchResult[];
@@ -75,6 +79,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   onSourceChange,
   currentSource,
   currentId,
+  episodeProgressContentKey,
   videoTitle,
   availableSources = [],
   sourceSearchLoading = false,
@@ -109,6 +114,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   const [isRetestingAll, setIsRetestingAll] = useState(false);
   // 标记是否正在进行初始测速
   const [isInitialTesting, setIsInitialTesting] = useState(false);
+  const [watchedEpisodes, setWatchedEpisodes] = useState<Set<number>>(new Set());
 
   // 使用 ref 来避免闭包问题
   const attemptedSourcesRef = useRef<Set<string>>(new Set());
@@ -122,6 +128,68 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   useEffect(() => {
     videoInfoMapRef.current = videoInfoMap;
   }, [videoInfoMap]);
+
+  useEffect(() => {
+    if (
+      typeof window === 'undefined' ||
+      !currentSource ||
+      !currentId ||
+      !episodeProgressContentKey
+    ) {
+      setWatchedEpisodes(new Set());
+      return;
+    }
+
+    const readWatchedEpisodes = () => {
+      const watched = new Set<number>();
+
+      try {
+        const records = getCachedPlayRecordsSnapshot();
+        const record = records[generateStorageKey(currentSource, currentId)];
+        if (record && record.index > 0 && record.play_time > 1) {
+          watched.add(record.index);
+        }
+      } catch (error) {
+        console.warn('[EpisodeSelector] Failed to read cached play records:', error);
+      }
+
+      try {
+        const episodeRecords = loadAllLocalEpisodeProgressRecords(
+          episodeProgressContentKey
+        );
+
+        for (const [episodeIndex, record] of Object.entries(episodeRecords)) {
+          if (Number(record?.playTime) > 1) {
+            const episodeNumber = Number(episodeIndex) + 1;
+            if (episodeNumber >= 1 && episodeNumber <= totalEpisodes) {
+              watched.add(episodeNumber);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[EpisodeSelector] Failed to read local episode progress:', error);
+      }
+
+      setWatchedEpisodes(watched);
+    };
+
+    readWatchedEpisodes();
+
+    const handlePlayRecordsUpdated = () => {
+      readWatchedEpisodes();
+    };
+
+    window.addEventListener('playRecordsUpdated', handlePlayRecordsUpdated as EventListener);
+    window.addEventListener('storage', handlePlayRecordsUpdated);
+
+    return () => {
+      window.removeEventListener(
+        'playRecordsUpdated',
+        handlePlayRecordsUpdated as EventListener
+      );
+      window.removeEventListener('storage', handlePlayRecordsUpdated);
+    };
+  }, [currentSource, currentId, episodeProgressContentKey, totalEpisodes]);
 
   // 主要的 tab 状态：'danmaku' | 'episodes' | 'sources'
   // 默认显示选集选项卡，但如果是房员则显示弹幕
@@ -182,29 +250,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
       // 获取集数标题
       const title = episodes_titles?.[episodeNumber - 1];
       if (!title) return false;
-
-      // 检查每个启用的规则
-      for (const rule of episodeFilterConfig.rules) {
-        if (!rule.enabled) continue;
-
-        try {
-          if (rule.type === 'normal') {
-            // 普通模式：字符串包含匹配
-            if (title.includes(rule.keyword)) {
-              return true;
-            }
-          } else if (rule.type === 'regex') {
-            // 正则模式：正则表达式匹配
-            if (new RegExp(rule.keyword).test(title)) {
-              return true;
-            }
-          }
-        } catch (e) {
-          console.error('集数过滤规则错误:', e);
-        }
-      }
-
-      return false;
+      return isEpisodeHiddenByFilter(title, episodeFilterConfig);
     },
     [episodeFilterConfig, episodes_titles]
   );
@@ -509,9 +555,13 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
 
   const handleEpisodeClick = useCallback(
     (episodeNumber: number) => {
+      if (episodeNumber + 1 === value) {
+        return;
+      }
+
       onChange?.(episodeNumber);
     },
-    [onChange]
+    [onChange, value]
   );
 
   const handleSourceClick = useCallback(
@@ -723,16 +773,25 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                 .filter(episodeNumber => !isEpisodeFiltered(episodeNumber))
                 .map((episodeNumber) => {
                   const isActive = episodeNumber === value;
+                  const isWatched = watchedEpisodes.has(episodeNumber);
                   return (
                     <button
                       key={episodeNumber}
+                      disabled={isActive}
                       onClick={() => handleEpisodeClick(episodeNumber - 1)}
-                      className={`h-10 min-w-10 px-3 py-2 flex items-center justify-center text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap font-mono
+                      className={`relative h-10 min-w-10 px-3 py-2 flex items-center justify-center text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap font-mono border
                         ${isActive
-                          ? 'bg-green-500 text-white shadow-lg shadow-green-500/25 dark:bg-green-600'
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300 hover:scale-105 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                        }`.trim()}
+                          ? 'bg-green-500 text-white border-green-400 shadow-lg shadow-green-500/25 dark:bg-green-600'
+                          : isWatched
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:scale-105 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/60 dark:hover:bg-emerald-900/30'
+                            : 'bg-gray-200 text-gray-700 border-transparent hover:bg-gray-300 hover:scale-105 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                        } ${isActive ? 'cursor-default' : ''}`.trim()}
+                      title={isWatched && !isActive ? '已观看过' : undefined}
+                      aria-current={isActive ? 'true' : undefined}
                     >
+                      {isWatched && !isActive && (
+                        <span className='absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400' />
+                      )}
                       {(() => {
                         const title = episodes_titles?.[episodeNumber - 1];
                         if (!title) {

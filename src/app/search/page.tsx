@@ -70,6 +70,7 @@ function SearchPageClient() {
 
   const router = useRouter();
   const searchParams = useSearchParams();
+  const submittedSearchQuery = searchParams.get('q')?.trim() || '';
   const currentQueryRef = useRef<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -355,19 +356,21 @@ function SearchPageClient() {
 
     return normalizedTitle.includes(normalizedQuery);
   };
+
+  const allExactSearchResults = useMemo(() => {
+    if (!exactSearch) return searchResults;
+
+    return searchResults.filter((item) =>
+      titleContainsQuery(item.title, submittedSearchQuery)
+    );
+  }, [searchResults, submittedSearchQuery, exactSearch]);
+
   // 聚合后的结果（按标题和年份分组）
   const aggregatedResults = useMemo(() => {
-    // 首先应用精确搜索过滤
-    const filteredResults = exactSearch
-      ? searchResults.filter((item) =>
-          titleContainsQuery(item.title, currentQueryRef.current)
-        )
-      : searchResults;
-
     //===== 阶段1：按 normalizedTitle-type 初步分组 =====
     const preliminaryMap = new Map<string, SearchResult[]>();
 
-    filteredResults.forEach((item) => {
+    allExactSearchResults.forEach((item) => {
       const normalizedTitle = normalizeTitle(item.title);
       const type = getType(item);
       const preliminaryKey = `${normalizedTitle}-${type}`;
@@ -428,7 +431,7 @@ function SearchPageClient() {
     return keyOrder.map(
       (key) => [key, finalMap.get(key)!] as [string, SearchResult[]]
     );
-  }, [searchResults, exactSearch]);
+  }, [allExactSearchResults]);
 
   // 当聚合结果变化时，如果某个聚合已存在，则调用其卡片 ref 的 set 方法增量更新
   useEffect(() => {
@@ -641,14 +644,7 @@ function SearchPageClient() {
   const filteredAllResults = useMemo(() => {
     const { source, title, year, yearOrder } = filterAll;
 
-    // 首先应用精确搜索过滤
-    const exactSearchFiltered = exactSearch
-      ? searchResults.filter((item) =>
-          titleContainsQuery(item.title, currentQueryRef.current)
-        )
-      : searchResults;
-
-    const filtered = exactSearchFiltered.filter((item) => {
+    const filtered = allExactSearchResults.filter((item) => {
       if (source !== 'all' && item.source !== source) return false;
       if (title !== 'all' && item.title !== title) return false;
       if (year !== 'all' && item.year !== year) return false;
@@ -677,7 +673,7 @@ function SearchPageClient() {
         ? a.title.localeCompare(b.title)
         : b.title.localeCompare(a.title);
     });
-  }, [searchResults, filterAll, searchQuery, exactSearch]);
+  }, [allExactSearchResults, filterAll, searchQuery]);
 
   // 聚合：应用筛选与排序
   const filteredAggResults = useMemo(() => {
@@ -732,6 +728,30 @@ function SearchPageClient() {
     resultDisplayMode,
     filteredAggResults.length,
     filteredAllResults.length,
+  ]);
+
+  const resultCountMeta = useMemo(() => {
+    const isAggregateView = viewMode === 'agg';
+    const visibleCount = isAggregateView
+      ? filteredAggResults.length
+      : filteredAllResults.length;
+    const totalCount = isAggregateView
+      ? aggregatedResults.length
+      : allExactSearchResults.length;
+
+    return {
+      visibleCount,
+      totalCount,
+      isFiltered: visibleCount !== totalCount,
+      modeLabel: isAggregateView ? '聚合结果' : '搜索结果',
+      unit: isAggregateView ? '组' : '条',
+    };
+  }, [
+    viewMode,
+    filteredAggResults.length,
+    filteredAllResults.length,
+    aggregatedResults.length,
+    allExactSearchResults.length,
   ]);
 
   useEffect(() => {
@@ -1570,28 +1590,44 @@ function SearchPageClient() {
                 <>
                   {/* 影视搜索结果 */}
                   {/* 标题 */}
-                  <div className='mb-4 flex items-center justify-between'>
-                    <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
-                      搜索结果
-                      {isFromCache ? (
-                        <span className='ml-2 rounded-md bg-green-50 px-2 py-0.5 text-xs font-medium text-green-600 dark:bg-green-900/30 dark:text-green-400'>
-                          缓存
+                  <div className='mb-4 flex items-start justify-between gap-4'>
+                    <div className='min-w-0'>
+                      <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+                        搜索结果
+                        {isFromCache ? (
+                          <span className='ml-2 rounded-md bg-green-50 px-2 py-0.5 text-xs font-medium text-green-600 dark:bg-green-900/30 dark:text-green-400'>
+                            缓存
+                          </span>
+                        ) : (
+                          <>
+                            {totalSources > 0 && useFluidSearch && (
+                              <span className='ml-2 text-sm font-normal text-gray-500 dark:text-gray-400'>
+                                源 {completedSources}/{totalSources}
+                              </span>
+                            )}
+                            {isLoading && useFluidSearch && (
+                              <span className='ml-2 inline-block align-middle'>
+                                <span className='inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-green-500'></span>
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </h2>
+                      <div className='mt-2 flex flex-wrap items-center gap-2 text-xs'>
+                        <span className='inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200'>
+                          {resultCountMeta.modeLabel}{' '}
+                          {resultCountMeta.visibleCount.toLocaleString()}{' '}
+                          {resultCountMeta.unit}
                         </span>
-                      ) : (
-                        <>
-                          {totalSources > 0 && useFluidSearch && (
-                            <span className='ml-2 text-sm font-normal text-gray-500 dark:text-gray-400'>
-                              {completedSources}/{totalSources}
-                            </span>
-                          )}
-                          {isLoading && useFluidSearch && (
-                            <span className='ml-2 inline-block align-middle'>
-                              <span className='inline-block h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-green-500'></span>
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </h2>
+                        {resultCountMeta.isFiltered && (
+                          <span className='inline-flex items-center rounded-full bg-white/80 px-2.5 py-1 font-medium text-gray-500 ring-1 ring-gray-200 dark:bg-gray-900/70 dark:text-gray-400 dark:ring-gray-700'>
+                            筛选前{' '}
+                            {resultCountMeta.totalCount.toLocaleString()}{' '}
+                            {resultCountMeta.unit}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                     {searchQuery && (
                       <button
                         onClick={() => {

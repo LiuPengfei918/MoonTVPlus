@@ -18,6 +18,7 @@ const REGISTRY_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 
 const _compiledCache = new Map<string, any>();
 const MAX_COMPILED_CACHE_SIZE = 50;
+const _runtimeCache = new Map<string, { value: string; expiresAt: number }>();
 
 export interface SourceScriptRecord {
   id: string;
@@ -178,6 +179,7 @@ async function loadRegistry(): Promise<SourceScriptRegistry> {
 async function saveRegistry(registry: SourceScriptRegistry) {
   _registryCache = null;
   _compiledCache.clear();
+  _runtimeCache.clear();
   await db.setGlobalValue(
     SOURCE_SCRIPT_REGISTRY_KEY,
     JSON.stringify(registry)
@@ -235,33 +237,26 @@ function createCacheHelpers(scriptId: string) {
 
   return {
     async get(key: string) {
-      const raw = await db.getGlobalValue(`${prefix}${key}`);
-      if (!raw) {
+      const entry = _runtimeCache.get(`${prefix}${key}`);
+      if (!entry) {
         return null;
       }
 
-      try {
-        const parsed = JSON.parse(raw) as { value: string; expiresAt: number };
-        if (parsed.expiresAt && parsed.expiresAt < Date.now()) {
-          await db.deleteGlobalValue(`${prefix}${key}`);
-          return null;
-        }
-        return parsed.value ?? null;
-      } catch {
-        return raw;
+      if (entry.expiresAt && entry.expiresAt < Date.now()) {
+        _runtimeCache.delete(`${prefix}${key}`);
+        return null;
       }
+
+      return entry.value ?? null;
     },
     async set(key: string, value: string, ttlSec = 300) {
-      await db.setGlobalValue(
-        `${prefix}${key}`,
-        JSON.stringify({
-          value,
-          expiresAt: Date.now() + ttlSec * 1000,
-        })
-      );
+      _runtimeCache.set(`${prefix}${key}`, {
+        value,
+        expiresAt: Date.now() + ttlSec * 1000,
+      });
     },
     async del(key: string) {
-      await db.deleteGlobalValue(`${prefix}${key}`);
+      _runtimeCache.delete(`${prefix}${key}`);
     },
   };
 }

@@ -4,6 +4,27 @@ const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
 
+function shouldInitSQLite() {
+  const isCloudflare = process.env.CF_PAGES === '1' || process.env.BUILD_TARGET === 'cloudflare';
+  return process.env.NEXT_PUBLIC_STORAGE_TYPE === 'd1' && !isCloudflare && process.env.MOONTV_LITE !== 'true';
+}
+
+function ensureSQLiteReady() {
+  if (!shouldInitSQLite()) {
+    return;
+  }
+
+  try {
+    const { initSQLiteDatabase } = require('./scripts/init-sqlite.js');
+    initSQLiteDatabase();
+  } catch (error) {
+    console.error('❌ Error initializing SQLite database:', error);
+    throw error;
+  }
+}
+
+ensureSQLiteReady();
+
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = process.env.HOSTNAME || '0.0.0.0';
 const port = parseInt(process.env.PORT || '3000', 10);

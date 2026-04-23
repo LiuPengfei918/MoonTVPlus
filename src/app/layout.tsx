@@ -8,7 +8,7 @@ import './globals.css';
 import { getConfig } from '@/lib/config';
 import { listEnabledSourceScripts } from '@/lib/source-script';
 
-import { DanmakuCacheCleanup } from '../components/DanmakuCacheCleanup';
+import { StartupCacheCleanup } from '../components/DanmakuCacheCleanup';
 import { DownloadBubble } from '../components/DownloadBubble';
 import { DownloadPanel } from '../components/DownloadPanel';
 import { GlobalErrorIndicator } from '../components/GlobalErrorIndicator';
@@ -16,6 +16,7 @@ import { SiteProvider } from '../components/SiteProvider';
 import { ThemeProvider } from '../components/ThemeProvider';
 import { TokenRefreshManager } from '../components/TokenRefreshManager';
 import TopProgressBar from '../components/TopProgressBar';
+import RouteScrollReset from '../components/RouteScrollReset';
 import ChatFloatingWindow from '../components/watch-room/ChatFloatingWindow';
 import { WatchRoomProvider } from '../components/WatchRoomProvider';
 import { DownloadProvider } from '../contexts/DownloadContext';
@@ -64,6 +65,7 @@ export default async function RootLayout({
     process.env.NEXT_PUBLIC_DISABLE_YELLOW_FILTER === 'true';
   let fluidSearch = process.env.NEXT_PUBLIC_FLUID_SEARCH !== 'false';
   let enableComments = false;
+  let danmakuAutoLoadDefault = true;
   let recommendationDataSource = 'Mixed';
   let tmdbApiKey = '';
   let openListEnabled = false;
@@ -93,6 +95,8 @@ export default async function RootLayout({
   let webLiveEnabled = false;
   let customAdFilterVersion = 0;
   let tuneHubEnabled = false;
+  let suwayomiEnabled = false;
+  let musicProxyEnabled = true;
   let advancedRecommendationEnabled = false;
   let customCategories = [] as {
     name: string;
@@ -118,6 +122,7 @@ export default async function RootLayout({
     }));
     fluidSearch = config.SiteConfig.FluidSearch;
     enableComments = config.SiteConfig.EnableComments;
+    danmakuAutoLoadDefault = config.SiteConfig.DanmakuAutoLoadDefault !== false;
     recommendationDataSource = config.SiteConfig.RecommendationDataSource || 'Mixed';
     tmdbApiKey = config.SiteConfig.TMDBApiKey || '';
     loginBackgroundImage = config.ThemeConfig?.loginBackgroundImage || '';
@@ -147,8 +152,14 @@ export default async function RootLayout({
     webLiveEnabled = config.WebLiveEnabled ?? false;
     // 自定义去广告代码版本号
     customAdFilterVersion = config.SiteConfig?.CustomAdFilterVersion || 0;
-    // TuneHub音乐功能配置
-    tuneHubEnabled = config.MusicConfig?.TuneHubEnabled || false;
+    // 音乐功能配置
+    tuneHubEnabled = config.MusicConfig?.Enabled || false;
+    musicProxyEnabled = config.MusicConfig?.ProxyEnabled ?? true;
+    // 漫画功能配置
+    suwayomiEnabled = !!(
+      config.SuwayomiConfig?.Enabled &&
+      config.SuwayomiConfig?.ServerURL
+    );
     // 高级推荐功能配置：存在已启用视频源脚本时显示
     advancedRecommendationEnabled =
       (await listEnabledSourceScripts()).length > 0;
@@ -173,8 +184,13 @@ export default async function RootLayout({
   }
 
   // 将运行时配置注入到全局 window 对象，供客户端在运行时读取
+  const runtimeStorageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  const isCloudflare = process.env.CF_PAGES === '1' || process.env.BUILD_TARGET === 'cloudflare';
+  const displayStorageType = runtimeStorageType === 'd1' && !isCloudflare ? 'sqlite' : runtimeStorageType;
+
   const runtimeConfig = {
-    STORAGE_TYPE: process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage',
+    STORAGE_TYPE: runtimeStorageType,
+    DISPLAY_STORAGE_TYPE: displayStorageType,
     DOUBAN_PROXY_TYPE: doubanProxyType,
     DOUBAN_PROXY: doubanProxy,
     DOUBAN_IMAGE_PROXY_TYPE: doubanImageProxyType,
@@ -183,6 +199,7 @@ export default async function RootLayout({
     CUSTOM_CATEGORIES: customCategories,
     FLUID_SEARCH: fluidSearch,
     EnableComments: enableComments,
+    DANMAKU_AUTO_LOAD_DEFAULT: danmakuAutoLoadDefault,
     RecommendationDataSource: recommendationDataSource,
     ENABLE_TVBOX_SUBSCRIBE: process.env.ENABLE_TVBOX_SUBSCRIBE === 'true',
     ENABLE_OFFLINE_DOWNLOAD: process.env.NEXT_PUBLIC_ENABLE_OFFLINE_DOWNLOAD === 'true',
@@ -217,7 +234,9 @@ export default async function RootLayout({
     WEB_LIVE_ENABLED: webLiveEnabled,
     ADVANCED_RECOMMENDATION_ENABLED: advancedRecommendationEnabled,
     CUSTOM_AD_FILTER_VERSION: customAdFilterVersion,
-    TUNEHUB_ENABLED: tuneHubEnabled,
+    MUSIC_ENABLED: tuneHubEnabled,
+    MUSIC_PROXY_ENABLED: musicProxyEnabled,
+    SUWAYOMI_ENABLED: suwayomiEnabled,
     FESTIVE_EFFECT_ENABLED:
       process.env.FESTIVE_EFFECT_ENABLED === 'true',
   };
@@ -250,11 +269,12 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <TopProgressBar />
+          <RouteScrollReset />
           <TokenRefreshManager />
           <SiteProvider siteName={siteName} announcement={announcement} tmdbApiKey={tmdbApiKey}>
             <WatchRoomProvider>
               <DownloadProvider>
-                <DanmakuCacheCleanup />
+                <StartupCacheCleanup />
                 {children}
                 <GlobalErrorIndicator />
                 <ChatFloatingWindow />

@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Bot, ChevronRight, Link as LinkIcon, ListVideo } from 'lucide-react';
+import { BookOpen, Bot, ChevronRight, Link as LinkIcon, ListVideo, Music } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -66,6 +66,8 @@ function HomeClient() {
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiDefaultMessageNoVideo, setAiDefaultMessageNoVideo] = useState('你好！我是MoonTVPlus的AI影视助手。想看什么电影或剧集？需要推荐吗？');
   const [sourceSearchEnabled, setSourceSearchEnabled] = useState(true);
+  const [musicEnabled, setMusicEnabled] = useState(false);
+  const [mangaEnabled, setMangaEnabled] = useState(false);
   const [showDirectPlayDialog, setShowDirectPlayDialog] = useState(false);
   const [directPlayUrl, setDirectPlayUrl] = useState('');
 
@@ -145,6 +147,22 @@ function HomeClient() {
     if (typeof window !== 'undefined') {
       const enabled = (window as any).RUNTIME_CONFIG?.ENABLE_SOURCE_SEARCH !== false;
       setSourceSearchEnabled(enabled);
+    }
+  }, []);
+
+  // 检查音乐功能是否启用
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const enabled = !!(window as any).RUNTIME_CONFIG?.MUSIC_ENABLED;
+      setMusicEnabled(enabled);
+    }
+  }, []);
+
+  // 检查漫画功能是否启用
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const enabled = !!(window as any).RUNTIME_CONFIG?.SUWAYOMI_ENABLED;
+      setMangaEnabled(enabled);
     }
   }, []);
 
@@ -604,19 +622,27 @@ function HomeClient() {
                 <LinkIcon size={18} />
               </button>
 
-              {/* 音乐视听入口（暂时隐藏，后续可能恢复） */}
-              {/**
-               * {musicEnabled && (
-               *   <Link href='/music'>
-               *     <button
-               *       className='p-2 rounded-lg text-green-500 hover:text-green-600 transition-colors'
-               *       title='音乐视听'
-               *     >
-               *       <Music size={20} />
-               *     </button>
-               *   </Link>
-               * )}
-               */}
+              {musicEnabled && (
+                <Link href='/music'>
+                  <button
+                    className='p-1.5 rounded-lg text-green-500 hover:text-green-600 transition-colors'
+                    title='音乐视听'
+                  >
+                    <Music size={18} />
+                  </button>
+                </Link>
+              )}
+
+              {mangaEnabled && (
+                <Link href='/manga'>
+                  <button
+                    className='p-1.5 rounded-lg text-emerald-500 hover:text-emerald-600 transition-colors'
+                    title='漫画展馆'
+                  >
+                    <BookOpen size={18} />
+                  </button>
+                </Link>
+              )}
 
               {/* 源站寻片入口 */}
               {sourceSearchEnabled && (

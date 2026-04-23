@@ -255,6 +255,7 @@ async function getInitConfig(configFile: string, subConfig: {
         process.env.DANMAKU_API_BASE ||
         (hasCustomDanmakuEnv ? 'http://localhost:9321' : BUILTIN_DANMAKU_API_BASE),
       DanmakuApiToken: process.env.DANMAKU_API_TOKEN || '87654321',
+      DanmakuAutoLoadDefault: true,
       // TMDB配置
       TMDBApiKey: process.env.TMDB_API_KEY || '',
       TMDBProxy: process.env.TMDB_PROXY || '',
@@ -450,6 +451,7 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
       DanmakuSourceType: 'builtin',
       DanmakuApiBase: BUILTIN_DANMAKU_API_BASE,
       DanmakuApiToken: '87654321',
+      DanmakuAutoLoadDefault: true,
       PansouApiUrl: '',
       PansouUsername: '',
       PansouPassword: '',
@@ -481,6 +483,9 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   }
   if (!adminConfig.SiteConfig.DanmakuApiToken) {
     adminConfig.SiteConfig.DanmakuApiToken = '87654321';
+  }
+  if (adminConfig.SiteConfig.DanmakuAutoLoadDefault === undefined) {
+    adminConfig.SiteConfig.DanmakuAutoLoadDefault = true;
   }
   // 确保评论开关存在
   if (adminConfig.SiteConfig.EnableComments === undefined) {
@@ -618,6 +623,46 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
     }
   }
 
+  if (!adminConfig.SuwayomiConfig) {
+    adminConfig.SuwayomiConfig = {
+      Enabled: process.env.SUWAYOMI_ENABLED === 'true',
+      ServerURL: process.env.SUWAYOMI_URL || process.env.NEXT_PUBLIC_SUWAYOMI_URL || '',
+      AuthMode: (process.env.SUWAYOMI_AUTH_MODE as 'none' | 'basic_auth' | 'simple_login' | undefined) || 'none',
+      Username: process.env.SUWAYOMI_USERNAME || '',
+      Password: process.env.SUWAYOMI_PASSWORD || '',
+      DefaultLang: process.env.SUWAYOMI_DEFAULT_LANG || 'zh',
+      SourceIds: [],
+      MaxSources: Number(process.env.SUWAYOMI_MAX_SOURCES || 10),
+    };
+  }
+  if (adminConfig.SuwayomiConfig.Enabled === undefined) {
+    adminConfig.SuwayomiConfig.Enabled = false;
+  }
+  if (adminConfig.SuwayomiConfig.ServerURL === undefined) {
+    adminConfig.SuwayomiConfig.ServerURL = '';
+  }
+  if (
+    adminConfig.SuwayomiConfig.AuthMode !== 'basic_auth' &&
+    adminConfig.SuwayomiConfig.AuthMode !== 'simple_login'
+  ) {
+    adminConfig.SuwayomiConfig.AuthMode = 'none';
+  }
+  if (adminConfig.SuwayomiConfig.Username === undefined) {
+    adminConfig.SuwayomiConfig.Username = '';
+  }
+  if (adminConfig.SuwayomiConfig.Password === undefined) {
+    adminConfig.SuwayomiConfig.Password = '';
+  }
+  if (adminConfig.SuwayomiConfig.DefaultLang === undefined) {
+    adminConfig.SuwayomiConfig.DefaultLang = 'zh';
+  }
+  if (!Array.isArray(adminConfig.SuwayomiConfig.SourceIds)) {
+    adminConfig.SuwayomiConfig.SourceIds = [];
+  }
+  if (adminConfig.SuwayomiConfig.MaxSources === undefined || Number.isNaN(adminConfig.SuwayomiConfig.MaxSources)) {
+    adminConfig.SuwayomiConfig.MaxSources = 10;
+  }
+
   if (!adminConfig.NetDiskConfig) {
     adminConfig.NetDiskConfig = {
       Quark: {
@@ -643,16 +688,13 @@ export function configSelfCheck(adminConfig: AdminConfig): AdminConfig {
   // 确保音乐配置存在
   if (!adminConfig.MusicConfig) {
     adminConfig.MusicConfig = {
-      TuneHubEnabled: false,
-      TuneHubBaseUrl: 'https://tunehub.sayqz.com/api',
-      TuneHubApiKey: '',
-      OpenListCacheEnabled: false,
-      OpenListCacheURL: '',
-      OpenListCacheUsername: '',
-      OpenListCachePassword: '',
-      OpenListCachePath: '/music-cache',
-      OpenListCacheProxyEnabled: true,
+      Enabled: false,
+      BaseUrl: '',
+      Token: '',
+      ProxyEnabled: true,
     };
+  } else if (adminConfig.MusicConfig.ProxyEnabled === undefined) {
+    adminConfig.MusicConfig.ProxyEnabled = true;
   }
 
   return adminConfig;

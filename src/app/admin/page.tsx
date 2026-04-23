@@ -24,6 +24,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   AlertCircle,
   AlertTriangle,
+  BookOpen,
   Bot,
   Cat,
   Check,
@@ -344,6 +345,7 @@ interface SiteConfig {
   DanmakuSourceType?: 'builtin' | 'custom';
   DanmakuApiBase: string;
   DanmakuApiToken: string;
+  DanmakuAutoLoadDefault?: boolean;
   TMDBApiKey?: string;
   TMDBProxy?: string;
   TMDBReverseProxy?: string;
@@ -7799,6 +7801,7 @@ const SiteConfigComponent = ({
     DanmakuSourceType: 'builtin',
     DanmakuApiBase: 'https://mtvpls-danmu.netlify.app/87654321',
     DanmakuApiToken: '87654321',
+    DanmakuAutoLoadDefault: true,
     TMDBApiKey: '',
     TMDBProxy: '',
     TMDBReverseProxy: '',
@@ -7896,6 +7899,7 @@ const SiteConfigComponent = ({
         DanmakuApiBase:
           config.SiteConfig.DanmakuApiBase || 'http://localhost:9321',
         DanmakuApiToken: config.SiteConfig.DanmakuApiToken || '87654321',
+        DanmakuAutoLoadDefault: config.SiteConfig.DanmakuAutoLoadDefault !== false,
         TMDBApiKey: config.SiteConfig.TMDBApiKey || '',
         TMDBProxy: config.SiteConfig.TMDBProxy || '',
         TMDBReverseProxy: config.SiteConfig.TMDBReverseProxy || '',
@@ -8538,6 +8542,34 @@ const SiteConfigComponent = ({
               </div>
             </>
           )}
+
+          <div className='flex items-center justify-between'>
+            <div>
+              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                默认自动加载弹幕
+              </h4>
+              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                新用户或未设置本地偏好时，播放页是否默认自动匹配并加载弹幕。用户仍可在个人设置中自行覆盖。
+              </p>
+            </div>
+            <label className='flex items-center cursor-pointer'>
+              <div className='relative'>
+                <input
+                  type='checkbox'
+                  className='sr-only peer'
+                  checked={siteSettings.DanmakuAutoLoadDefault !== false}
+                  onChange={(e) =>
+                    setSiteSettings((prev) => ({
+                      ...prev,
+                      DanmakuAutoLoadDefault: e.target.checked,
+                    }))
+                  }
+                />
+                <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
+                <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
+              </div>
+            </label>
+          </div>
         </div>
       </details>
 
@@ -10083,6 +10115,264 @@ const CustomAdFilterConfig = ({
 };
 
 // 小雅配置组件
+
+const SuwayomiConfigComponent = ({
+  config,
+  refreshConfig,
+}: {
+  config: AdminConfig | null;
+  refreshConfig: () => Promise<void>;
+}) => {
+  const { alertModal, showAlert, hideAlert } = useAlertModal();
+  const { isLoading, withLoading } = useLoadingState();
+  const [enabled, setEnabled] = useState(false);
+  const [serverURL, setServerURL] = useState('');
+  const [authMode, setAuthMode] = useState<'none' | 'basic_auth' | 'simple_login'>('none');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [defaultLang, setDefaultLang] = useState('zh');
+  const [sourceIds, setSourceIds] = useState('');
+  const [maxSources, setMaxSources] = useState(10);
+
+  useEffect(() => {
+    if (config?.SuwayomiConfig) {
+      setEnabled(config.SuwayomiConfig.Enabled || false);
+      setServerURL(config.SuwayomiConfig.ServerURL || '');
+      setAuthMode(config.SuwayomiConfig.AuthMode || 'none');
+      setUsername(config.SuwayomiConfig.Username || '');
+      setPassword(config.SuwayomiConfig.Password || '');
+      setDefaultLang(config.SuwayomiConfig.DefaultLang || 'zh');
+      setSourceIds((config.SuwayomiConfig.SourceIds || []).join(','));
+      setMaxSources(config.SuwayomiConfig.MaxSources || 10);
+    }
+  }, [config]);
+
+  const buildConfig = () => ({
+    Enabled: enabled,
+    ServerURL: serverURL,
+    AuthMode: authMode,
+    Username: authMode === 'none' ? '' : username,
+    Password: authMode === 'none' ? '' : password,
+    DefaultLang: defaultLang || 'zh',
+    SourceIds: sourceIds.split(',').map((item) => item.trim()).filter(Boolean),
+    MaxSources: Math.max(1, maxSources || 10),
+  });
+
+  const handleSave = async () => {
+    await withLoading('saveSuwayomi', async () => {
+      try {
+        if (!config) throw new Error('配置未加载');
+
+        const response = await fetch('/api/admin/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...config,
+            SuwayomiConfig: buildConfig(),
+          }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || '保存失败');
+        }
+
+        showSuccess('漫画后端配置已保存', showAlert);
+        await refreshConfig();
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '保存失败', showAlert);
+        throw error;
+      }
+    });
+  };
+
+  const handleTest = async () => {
+    await withLoading('testSuwayomi', async () => {
+      try {
+        const response = await fetch('/api/admin/suwayomi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ServerURL: serverURL,
+            AuthMode: authMode,
+            Username: username,
+            Password: password,
+            DefaultLang: defaultLang,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || data.error || '测试连接失败');
+        }
+
+        showSuccess(data.message || '连接成功', showAlert);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '测试连接失败', showAlert);
+        throw error;
+      }
+    });
+  };
+
+  return (
+    <div className='space-y-6'>
+      <div className='bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4'>
+        <h3 className='text-sm font-medium text-blue-900 dark:text-blue-100 mb-2'>
+          关于漫画展馆 / Suwayomi
+        </h3>
+        <div className='text-sm text-blue-800 dark:text-blue-200 space-y-1'>
+          <p>• 漫画展馆通过 Suwayomi Server 的 GraphQL 接口搜索、拉取章节与阅读页。</p>
+          <p>• 认证仅支持 basic_auth 与 simple_login；未开启认证时请选择“无认证”。</p>
+          <p>• 可限制默认语言、可用源白名单，以及单次搜索最多查询的源数量。</p>
+          <p>• 保存后漫画模块会优先使用这里的配置，环境变量只作为兜底。</p>
+        </div>
+      </div>
+
+      <div className='space-y-4'>
+        <div className='flex items-center justify-between py-3 border-b border-gray-200 dark:border-gray-700'>
+          <div>
+            <h3 className='text-sm font-medium text-gray-900 dark:text-white'>启用漫画展馆</h3>
+            <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>关闭后仍保留代码，但不建议在未配置时对用户开放入口。</p>
+          </div>
+          <button
+            onClick={() => setEnabled(!enabled)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`}
+            />
+          </button>
+        </div>
+
+        <div>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>Suwayomi 服务地址</label>
+          <input
+            type='text'
+            value={serverURL}
+            onChange={(e) => setServerURL(e.target.value)}
+            placeholder='http://127.0.0.1:4567'
+            className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+          />
+          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>只填服务根地址，程序会自动拼接 /api/graphql。</p>
+        </div>
+
+        <div>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>认证方式</label>
+          <div className='grid grid-cols-1 gap-2 md:grid-cols-3'>
+            {[
+              { value: 'none', label: '无认证' },
+              { value: 'basic_auth', label: 'basic_auth' },
+              { value: 'simple_login', label: 'simple_login' },
+            ].map((item) => (
+              <button
+                key={item.value}
+                type='button'
+                onClick={() => setAuthMode(item.value as 'none' | 'basic_auth' | 'simple_login')}
+                className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  authMode === item.value
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-900/30 dark:text-blue-200'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+            basic_auth 使用 Basic Authorization 头；simple_login 会向 /login.html 提交表单并复用返回 Cookie。
+          </p>
+        </div>
+
+        {authMode !== 'none' && (
+          <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+            <div>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>用户名</label>
+              <input
+                type='text'
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder='登录用户名'
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+              />
+            </div>
+            <div>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>密码</label>
+              <input
+                type='password'
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder='登录密码'
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+              />
+            </div>
+          </div>
+        )}
+
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+          <div>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>默认语言</label>
+            <input
+              type='text'
+              value={defaultLang}
+              onChange={(e) => setDefaultLang(e.target.value)}
+              placeholder='zh'
+              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+            />
+          </div>
+          <div>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>单次搜索最大源数</label>
+            <input
+              type='number'
+              min='1'
+              value={maxSources}
+              onChange={(e) => setMaxSources(parseInt(e.target.value) || 10)}
+              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>源白名单</label>
+          <textarea
+            value={sourceIds}
+            onChange={(e) => setSourceIds(e.target.value)}
+            rows={3}
+            placeholder='留空表示使用默认语言下全部源；填写时用英文逗号分隔 sourceId'
+            className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+          />
+        </div>
+
+        <div className='flex gap-3'>
+          <button
+            onClick={handleTest}
+            disabled={!serverURL || isLoading('testSuwayomi')}
+            className={buttonStyles.primary}
+          >
+            {isLoading('testSuwayomi') ? '测试中...' : '测试连接'}
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isLoading('saveSuwayomi')}
+            className={buttonStyles.success}
+          >
+            {isLoading('saveSuwayomi') ? '保存中...' : '保存配置'}
+          </button>
+        </div>
+      </div>
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={hideAlert}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+        timer={alertModal.timer}
+        showConfirm={alertModal.showConfirm}
+      />
+    </div>
+  );
+};
+
 const XiaoyaConfigComponent = ({
   config,
   refreshConfig,
@@ -11524,6 +11814,189 @@ const AIConfigComponent = ({
   );
 };
 
+// 音乐配置组件
+const MusicConfigComponent = ({
+  config,
+  refreshConfig,
+}: {
+  config: AdminConfig | null;
+  refreshConfig: () => Promise<void>;
+}) => {
+  const { alertModal, showAlert, hideAlert } = useAlertModal();
+  const { isLoading, withLoading } = useLoadingState();
+  const [enabled, setEnabled] = useState(false);
+  const [baseUrl, setBaseUrl] = useState('');
+  const [token, setToken] = useState('');
+  const [proxyEnabled, setProxyEnabled] = useState(true);
+
+  useEffect(() => {
+    if (config?.MusicConfig) {
+      setEnabled(config.MusicConfig.Enabled || false);
+      setBaseUrl(config.MusicConfig.BaseUrl || '');
+      setToken(config.MusicConfig.Token || '');
+      setProxyEnabled(config.MusicConfig.ProxyEnabled ?? true);
+    }
+  }, [config]);
+
+  const handleSave = async () => {
+    await withLoading('saveMusicConfig', async () => {
+      try {
+        const normalizedBaseUrl = baseUrl.trim().replace(/\/$/, '');
+
+        if (enabled && !normalizedBaseUrl) {
+          throw new Error('启用音乐功能时必须填写 lxserver 地址');
+        }
+
+        const response = await fetch('/api/admin/music', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            Enabled: enabled,
+            BaseUrl: normalizedBaseUrl,
+            Token: token.trim(),
+            ProxyEnabled: proxyEnabled,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || '保存失败');
+        }
+
+        showSuccess('音乐配置保存成功', showAlert);
+        await refreshConfig();
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '保存失败', showAlert);
+        throw error;
+      }
+    });
+  };
+
+  return (
+    <div className='space-y-6'>
+      <div className='bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4'>
+        <div className='flex items-center gap-2 mb-2'>
+          <svg
+            className='w-5 h-5 text-blue-600 dark:text-blue-400'
+            fill='none'
+            stroke='currentColor'
+            viewBox='0 0 24 24'
+          >
+            <path
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              strokeWidth={2}
+              d='M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3'
+            />
+          </svg>
+          <span className='text-sm font-medium text-blue-800 dark:text-blue-300'>
+            使用说明
+          </span>
+        </div>
+        <div className='text-sm text-blue-700 dark:text-blue-400 space-y-1'>
+          <p>• 音乐功能基于 lxserver 提供搜索、热搜、榜单、歌词与播放解析能力</p>
+          <p>• 建议填写服务端 Base URL 与持久 Token，由 MoonTV 服务端代为访问 lxserver</p>
+          <p>• 项目地址：<a href='https://github.com/XCQ0607/lxserver' target='_blank' rel='noreferrer' className='underline hover:text-blue-500'>https://github.com/XCQ0607/lxserver</a></p>
+        </div>
+      </div>
+
+      <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700'>
+        <div>
+          <h3 className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+            启用音乐功能
+          </h3>
+          <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+            关闭后不显示音乐入口，前端音乐页与接口将不可用
+          </p>
+        </div>
+        <label className='relative inline-flex items-center cursor-pointer'>
+          <input
+            type='checkbox'
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+            className='sr-only peer'
+          />
+          <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 dark:peer-focus:ring-green-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-green-600"></div>
+        </label>
+      </div>
+
+      <div className='space-y-4'>
+        <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700'>
+          <div>
+            <h3 className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+              启用播放代理
+            </h3>
+            <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+              开启后走服务器代理并设置浏览器永久缓存，关闭后将每次都解析播放链接
+            </p>
+          </div>
+          <label className='relative inline-flex items-center cursor-pointer'>
+            <input
+              type='checkbox'
+              checked={proxyEnabled}
+              onChange={(e) => setProxyEnabled(e.target.checked)}
+              className='sr-only peer'
+            />
+            <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 dark:peer-focus:ring-green-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all dark:border-gray-600 peer-checked:bg-green-600"></div>
+          </label>
+        </div>
+
+        <div>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+            lxserver Base URL
+          </label>
+          <input
+            type='text'
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder='http://127.0.0.1:9527'
+            className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+          />
+          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+            例如： http://127.0.0.1:9527 或 https://music.example.com
+          </p>
+        </div>
+
+        <div>
+          <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+            x-user-token
+          </label>
+          <input
+            type='password'
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder='lx_tk_xxx'
+            className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+          />
+          <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+            推荐填写 lxserver 持久 Token；留空则按匿名访问处理
+          </p>
+        </div>
+      </div>
+
+      <div className='flex justify-end'>
+        <button
+          onClick={handleSave}
+          disabled={isLoading('saveMusicConfig')}
+          className={isLoading('saveMusicConfig') ? buttonStyles.disabled : buttonStyles.success}
+        >
+          {isLoading('saveMusicConfig') ? '保存中...' : '保存音乐配置'}
+        </button>
+      </div>
+
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        onClose={hideAlert}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+        timer={alertModal.timer}
+        showConfirm={alertModal.showConfirm}
+      />
+    </div>
+  );
+};
+
 // 直播源配置组件
 const LiveSourceConfig = ({
   config,
@@ -12602,11 +13075,13 @@ function AdminPageClient() {
     userConfig: false,
     videoSource: false,
     sourceScriptLab: false,
+    musicConfig: false,
     mediaLibrary: false,
     openListConfig: false,
     netDiskConfig: false,
     embyConfig: false,
     xiaoyaConfig: false,
+    suwayomiConfig: false,
     animeSubscription: false,
     aiConfig: false,
     liveSource: false,
@@ -12973,6 +13448,43 @@ function AdminPageClient() {
               <VideoSourceScriptLab />
             </CollapsibleTab>
 
+            <CollapsibleTab
+              title='音乐配置'
+              icon={
+                <svg
+                  width='20'
+                  height='20'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  className='text-gray-600 dark:text-gray-400'
+                >
+                  <path d='M9 18V5l12-2v13' />
+                  <circle cx='6' cy='18' r='3' />
+                  <circle cx='18' cy='16' r='3' />
+                </svg>
+              }
+              isExpanded={expandedTabs.musicConfig}
+              onToggle={() => toggleTab('musicConfig')}
+            >
+              <MusicConfigComponent config={config} refreshConfig={fetchConfig} />
+            </CollapsibleTab>
+
+
+            <CollapsibleTab
+              title='漫画配置'
+              icon={
+                <BookOpen size={20} className='text-gray-600 dark:text-gray-400' />
+              }
+              isExpanded={expandedTabs.suwayomiConfig}
+              onToggle={() => toggleTab('suwayomiConfig')}
+            >
+              <SuwayomiConfigComponent config={config} refreshConfig={fetchConfig} />
+            </CollapsibleTab>
+
             {/* 电视直播源配置标签 */}
             <CollapsibleTab
               title='电视直播源配置'
@@ -13043,7 +13555,6 @@ function AdminPageClient() {
                 >
                   <XiaoyaConfigComponent config={config} refreshConfig={fetchConfig} />
                 </CollapsibleTab>
-
                 {/* 求片管理子标签 */}
                 <CollapsibleTab
                   title='求片管理'

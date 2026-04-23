@@ -21,7 +21,12 @@ import {
   saveFavorite,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
-import { processImageUrl, base58Decode, tryApplyDoubanImageFallback } from '@/lib/utils';
+import {
+  processImageUrl,
+  base58Decode,
+  tryApplyDoubanImageFallback,
+  getDoubanImageFallbackUrl,
+} from '@/lib/utils';
 import { useLongPress } from '@/hooks/useLongPress';
 
 import AIChatPanel from '@/components/AIChatPanel';
@@ -105,6 +110,9 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
   ref
 ) {
   const router = useRouter();
+  const actualTitle = title;
+  const actualPoster = poster;
+  const processedPoster = useMemo(() => processImageUrl(actualPoster), [actualPoster]);
   const [favorited, setFavorited] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showMobileActions, setShowMobileActions] = useState(false);
@@ -116,6 +124,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [showUpcomingInfo, setShowUpcomingInfo] = useState(false); // 控制即将上映倒计时的显示
+  const [displayPoster, setDisplayPoster] = useState(processedPoster);
 
   // 检查AI功能是否启用
   useEffect(() => {
@@ -156,14 +165,16 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
     setDynamicDoubanId(douban_id);
   }, [douban_id]);
 
+  useEffect(() => {
+    setDisplayPoster(processedPoster);
+  }, [processedPoster]);
+
   useImperativeHandle(ref, () => ({
     setEpisodes: (eps?: number) => setDynamicEpisodes(eps),
     setSourceNames: (names?: string[]) => setDynamicSourceNames(names),
     setDoubanId: (id?: number) => setDynamicDoubanId(id),
   }));
 
-  const actualTitle = title;
-  const actualPoster = poster;
   const actualSource = source;
   const actualId = id;
   const actualDoubanId = dynamicDoubanId;
@@ -738,7 +749,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
             </div>
           ) : (
             <Image
-              src={processImageUrl(actualPoster)}
+              src={displayPoster}
               alt={actualTitle}
               fill
               className={origin === 'live' ? 'object-contain' : orientation === 'horizontal' ? 'object-cover object-center' : 'object-cover'}
@@ -751,7 +762,9 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
               }}
               onError={(e) => {
                 const img = e.currentTarget as HTMLImageElement;
-                if (tryApplyDoubanImageFallback(img, actualPoster)) {
+                const fallbackPoster = getDoubanImageFallbackUrl(actualPoster);
+                if (fallbackPoster && tryApplyDoubanImageFallback(img, actualPoster)) {
+                  setDisplayPoster(fallbackPoster);
                   return;
                 }
 
@@ -759,7 +772,8 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
                 if (!img.dataset.retried) {
                   img.dataset.retried = 'true';
                   setTimeout(() => {
-                    img.src = processImageUrl(actualPoster);
+                    setDisplayPoster(processedPoster);
+                    img.src = processedPoster;
                   }, 2000);
                 }
               }}
@@ -1545,7 +1559,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
         isOpen={showMobileActions}
         onClose={() => setShowMobileActions(false)}
         title={actualTitle}
-        poster={processImageUrl(actualPoster)}
+        poster={displayPoster}
         actions={mobileActions}
         sources={isAggregate && dynamicSourceNames ? Array.from(new Set(dynamicSourceNames)) : undefined}
         isAggregate={isAggregate}
@@ -1583,7 +1597,7 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
           isOpen={showDetailPanel}
           onClose={() => setShowDetailPanel(false)}
           title={actualTitle}
-          poster={processImageUrl(actualPoster)}
+          poster={displayPoster}
           doubanId={actualDoubanId}
           bangumiId={isBangumi ? actualDoubanId : undefined}
           isBangumi={isBangumi}
