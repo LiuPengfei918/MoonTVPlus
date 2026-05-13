@@ -116,6 +116,12 @@ export default function MusicPage() {
   const [loadingPlayAll, setLoadingPlayAll] = useState(false); // 播放全部加载状态
   const [deletingPlaylistId, setDeletingPlaylistId] = useState<string | null>(null); // 正在删除的歌单ID
 
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !(window as any).RUNTIME_CONFIG?.MUSIC_ENABLED) {
+      router.replace('/');
+    }
+  }, [router]);
+
   // Toast 和 Confirm Modal 状态
   const [toast, setToast] = useState<ToastProps | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
@@ -1916,86 +1922,88 @@ export default function MusicPage() {
           }}
         >
           <div
-            className="w-full max-w-2xl h-[90vh] md:h-auto max-h-[90vh] bg-zinc-900/95 rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex flex-col"
+            className="relative w-full max-w-6xl h-[90vh] bg-zinc-900/95 rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex flex-col"
             onClick={() => setShowVolumeSlider(false)}
           >
-            {/* Header */}
-            <div className="relative h-32 md:h-48 bg-gradient-to-b from-zinc-800 to-zinc-900 shrink-0">
-              {currentSong.pic && (
-                <div className="absolute inset-0">
-                  <img
-                    src={currentSong.pic}
-                    alt={currentSong.name}
-                    className="w-full h-full object-cover opacity-30 blur-xl"
-                  />
-                </div>
-              )}
-              <div className="relative h-full flex flex-col items-center justify-center p-4 md:p-6">
-                <button
-                  onClick={() => setShowLyrics(false)}
-                  className="absolute top-2 right-2 md:top-4 md:right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                >
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-                <div className="w-16 h-16 md:w-24 md:h-24 rounded-xl overflow-hidden shadow-2xl mb-2 md:mb-4">
-                  {currentSong.pic ? (
+            <button
+              onClick={() => setShowLyrics(false)}
+              className="absolute top-2 right-2 md:top-4 md:right-4 z-10 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+            >
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="flex flex-1 min-h-0 flex-col md:flex-row">
+              {/* Cover / Meta */}
+              <div className="relative h-32 md:h-auto md:w-[320px] lg:w-[360px] xl:w-[420px] bg-gradient-to-b from-zinc-800 to-zinc-900 shrink-0">
+                {currentSong.pic && (
+                  <div className="absolute inset-0">
                     <img
                       src={currentSong.pic}
                       alt={currentSong.name}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover opacity-30 blur-xl"
                     />
-                  ) : (
-                    <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
-                      <svg className="w-8 h-8 md:w-12 md:h-12 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
-                      </svg>
-                    </div>
-                  )}
+                  </div>
+                )}
+                <div className="relative h-full flex flex-col items-center justify-center p-4 md:p-6 lg:p-8">
+                  <div className="w-16 h-16 md:w-40 md:h-40 lg:w-56 lg:h-56 rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl mb-2 md:mb-4 lg:mb-6">
+                    {currentSong.pic ? (
+                      <img
+                        src={currentSong.pic}
+                        alt={currentSong.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+                        <svg className="w-8 h-8 md:w-16 md:h-16 lg:w-20 lg:h-20 text-zinc-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <h2 className="text-base md:text-lg lg:text-2xl font-bold text-white text-center mb-1 line-clamp-2">{currentSong.name}</h2>
+                  <p className="text-xs md:text-sm lg:text-base text-zinc-400 line-clamp-1 text-center">{currentSong.artist}</p>
                 </div>
-                <h2 className="text-base md:text-xl font-bold text-white text-center mb-1 line-clamp-1">{currentSong.name}</h2>
-                <p className="text-xs md:text-sm text-zinc-400 line-clamp-1">{currentSong.artist}</p>
               </div>
-            </div>
 
-            {/* Lyrics Content */}
-            <div ref={lyricsContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6">
-              {lyrics.length > 0 ? (
-                <div className="space-y-4">
-                  {lyrics.map((line, index) => (
-                    <div
-                      key={index}
-                      data-index={index}
-                      className={`text-center transition-all duration-300 ${
-                        index === currentLyricIndex
-                          ? 'text-white text-lg font-bold scale-110'
-                          : index === currentLyricIndex - 1 || index === currentLyricIndex + 1
-                          ? 'text-zinc-400 text-base'
-                          : 'text-zinc-600 text-sm'
-                      }`}
-                    >
-                      <div>{line.text}</div>
-                      {line.translation && (
-                        <div
-                          className={`mt-1 ${
-                            index === currentLyricIndex
-                              ? 'text-zinc-300 text-sm md:text-base font-normal'
-                              : 'text-zinc-500 text-xs md:text-sm font-normal'
-                          }`}
-                        >
-                          {line.translation}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center space-y-4">
-                  <p className="text-zinc-500 text-sm">暂无歌词</p>
-                  <p className="text-zinc-600 text-xs">纯音乐或歌词获取失败</p>
-                </div>
-              )}
+              {/* Lyrics Content */}
+              <div ref={lyricsContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+                {lyrics.length > 0 ? (
+                  <div className="space-y-4 md:space-y-5">
+                    {lyrics.map((line, index) => (
+                      <div
+                        key={index}
+                        data-index={index}
+                        className={`text-center transition-all duration-300 ${
+                          index === currentLyricIndex
+                            ? 'text-white text-lg md:text-xl lg:text-2xl font-bold scale-110'
+                            : index === currentLyricIndex - 1 || index === currentLyricIndex + 1
+                            ? 'text-zinc-400 text-base md:text-lg'
+                            : 'text-zinc-600 text-sm md:text-base'
+                        }`}
+                      >
+                        <div>{line.text}</div>
+                        {line.translation && (
+                          <div
+                            className={`mt-1 ${
+                              index === currentLyricIndex
+                                ? 'text-zinc-300 text-sm md:text-base lg:text-lg font-normal'
+                                : 'text-zinc-500 text-xs md:text-sm lg:text-base font-normal'
+                            }`}
+                          >
+                            {line.translation}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center space-y-4 pt-10 md:pt-16 lg:pt-20">
+                    <p className="text-zinc-500 text-sm md:text-base">暂无歌词</p>
+                    <p className="text-zinc-600 text-xs md:text-sm">纯音乐或歌词获取失败</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Mini Player Controls */}

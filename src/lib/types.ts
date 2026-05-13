@@ -1,5 +1,6 @@
 import { AdminConfig } from './admin.types';
 import { MangaReadRecord, MangaShelfItem } from './manga.types';
+import { BookReadRecord, BookShelfItem } from './book.types';
 
 // 播放记录数据结构
 export interface PlayRecord {
@@ -88,6 +89,19 @@ export interface IStorage {
   getAllMangaReadRecords(userName: string): Promise<{ [key: string]: MangaReadRecord }>;
   deleteMangaReadRecord(userName: string, key: string): Promise<void>;
   cleanupOldMangaReadRecords?(userName: string): Promise<void>;
+
+  // 电子书书架相关
+  getBookShelf(userName: string, key: string): Promise<BookShelfItem | null>;
+  setBookShelf(userName: string, key: string, item: BookShelfItem): Promise<void>;
+  getAllBookShelf(userName: string): Promise<{ [key: string]: BookShelfItem }>;
+  deleteBookShelf(userName: string, key: string): Promise<void>;
+
+  // 电子书阅读历史相关
+  getBookReadRecord(userName: string, key: string): Promise<BookReadRecord | null>;
+  setBookReadRecord(userName: string, key: string, record: BookReadRecord): Promise<void>;
+  getAllBookReadRecords(userName: string): Promise<{ [key: string]: BookReadRecord }>;
+  deleteBookReadRecord(userName: string, key: string): Promise<void>;
+  cleanupOldBookReadRecords?(userName: string): Promise<void>;
 
   // 用户列表
   getAllUsers(): Promise<string[]>;

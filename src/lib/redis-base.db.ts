@@ -4,6 +4,7 @@ import { createClient, RedisClientType } from 'redis';
 
 import { AdminConfig } from './admin.types';
 import { MangaReadRecord, MangaShelfItem } from './manga.types';
+import { BookReadRecord, BookShelfItem } from './book.types';
 import { MusicV2HistoryRecord, MusicV2PlaylistItem, MusicV2PlaylistRecord } from './music-v2';
 import { RedisAdapter } from './redis-adapter';
 import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
@@ -1566,6 +1567,76 @@ export abstract class BaseRedisStorage implements IStorage {
 
     if (keys.length > 0) {
       await this.withRetry(() => this.adapter.hDel(this.mangaReadHashKey(userName), ...keys));
+    }
+  }
+
+
+  // ---------- 电子书书架 ----------
+  private bookShelfHashKey(user: string) {
+    return `u:${user}:book:shelf`;
+  }
+
+  async getBookShelf(userName: string, key: string): Promise<BookShelfItem | null> {
+    const val = await this.withRetry(() => this.adapter.hGet(this.bookShelfHashKey(userName), key));
+    return val ? (JSON.parse(val) as BookShelfItem) : null;
+  }
+
+  async setBookShelf(userName: string, key: string, item: BookShelfItem): Promise<void> {
+    await this.withRetry(() => this.adapter.hSet(this.bookShelfHashKey(userName), key, JSON.stringify(item)));
+  }
+
+  async getAllBookShelf(userName: string): Promise<Record<string, BookShelfItem>> {
+    const hashData = await this.withRetry(() => this.adapter.hGetAll(this.bookShelfHashKey(userName)));
+    const result: Record<string, BookShelfItem> = {};
+    for (const [key, value] of Object.entries(hashData)) {
+      if (value) result[key] = JSON.parse(value) as BookShelfItem;
+    }
+    return result;
+  }
+
+  async deleteBookShelf(userName: string, key: string): Promise<void> {
+    await this.withRetry(() => this.adapter.hDel(this.bookShelfHashKey(userName), key));
+  }
+
+  // ---------- 电子书阅读历史 ----------
+  private bookReadHashKey(user: string) {
+    return `u:${user}:book:history`;
+  }
+
+  async getBookReadRecord(userName: string, key: string): Promise<BookReadRecord | null> {
+    const val = await this.withRetry(() => this.adapter.hGet(this.bookReadHashKey(userName), key));
+    return val ? (JSON.parse(val) as BookReadRecord) : null;
+  }
+
+  async setBookReadRecord(userName: string, key: string, record: BookReadRecord): Promise<void> {
+    await this.withRetry(() => this.adapter.hSet(this.bookReadHashKey(userName), key, JSON.stringify(record)));
+  }
+
+  async getAllBookReadRecords(userName: string): Promise<Record<string, BookReadRecord>> {
+    const hashData = await this.withRetry(() => this.adapter.hGetAll(this.bookReadHashKey(userName)));
+    const result: Record<string, BookReadRecord> = {};
+    for (const [key, value] of Object.entries(hashData)) {
+      if (value) result[key] = JSON.parse(value) as BookReadRecord;
+    }
+    return result;
+  }
+
+  async deleteBookReadRecord(userName: string, key: string): Promise<void> {
+    await this.withRetry(() => this.adapter.hDel(this.bookReadHashKey(userName), key));
+  }
+
+  async cleanupOldBookReadRecords(userName: string): Promise<void> {
+    const records = await this.getAllBookReadRecords(userName);
+    const maxRecords = parseInt(process.env.MAX_BOOK_HISTORY_PER_USER || '100', 10);
+    const threshold = maxRecords + 10;
+    if (Object.keys(records).length <= threshold) return;
+    const keys = Object.entries(records)
+      .sort(([, a], [, b]) => b.saveTime - a.saveTime)
+      .slice(maxRecords)
+      .map(([key]) => key);
+
+    if (keys.length > 0) {
+      await this.withRetry(() => this.adapter.hDel(this.bookReadHashKey(userName), ...keys));
     }
   }
 

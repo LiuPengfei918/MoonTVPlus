@@ -19,6 +19,7 @@ import {
 } from './types';
 import { AdminConfig } from './admin.types';
 import { MangaReadRecord, MangaShelfItem } from './manga.types';
+import { BookReadRecord, BookShelfItem } from './book.types';
 import { DatabaseAdapter } from './d1-adapter';
 import { MusicV2HistoryRecord, MusicV2PlaylistItem, MusicV2PlaylistRecord } from './music-v2';
 
@@ -1439,7 +1440,7 @@ export class PostgresStorage implements IStorage {
             username, song_id, source, songmid, name, artist, album, cover, duration_text, duration_sec,
             play_progress_sec, last_played_at, play_count, last_quality, created_at, updated_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
           ON CONFLICT(username, song_id) DO UPDATE SET
             source = EXCLUDED.source,
             songmid = EXCLUDED.songmid,
@@ -2065,6 +2066,273 @@ export class PostgresStorage implements IStorage {
     }
   }
 
+
+  // ==================== 电子书书架 ====================
+
+  async getBookShelf(userName: string, key: string): Promise<BookShelfItem | null> {
+    try {
+      const result = await this.db
+        .prepare('SELECT * FROM book_shelf WHERE username = $1 AND key = $2')
+        .bind(userName, key)
+        .first();
+
+      if (!result) return null;
+      return {
+        sourceId: result.source_id as string,
+        sourceName: result.source_name as string,
+        bookId: result.book_id as string,
+        title: result.title as string,
+        author: (result.author as string) || undefined,
+        cover: (result.cover as string) || undefined,
+        format: (result.format as 'epub' | 'pdf' | null) || undefined,
+        detailHref: (result.detail_href as string) || undefined,
+        acquisitionHref: (result.acquisition_href as string) || undefined,
+        progressPercent: result.progress_percent === null || result.progress_percent === undefined ? undefined : Number(result.progress_percent),
+        lastReadTime: result.last_read_time === null || result.last_read_time === undefined ? undefined : Number(result.last_read_time),
+        lastLocatorType: (result.last_locator_type as BookShelfItem['lastLocatorType']) || undefined,
+        lastLocatorValue: (result.last_locator_value as string) || undefined,
+        lastChapterTitle: (result.last_chapter_title as string) || undefined,
+        saveTime: Number(result.save_time || 0),
+      };
+    } catch (err) {
+      console.error('PostgresStorage.getBookShelf error:', err);
+      throw err;
+    }
+  }
+
+  async setBookShelf(userName: string, key: string, item: BookShelfItem): Promise<void> {
+    try {
+      await this.db
+        .prepare(`
+          INSERT INTO book_shelf (
+            username, key, source_id, source_name, book_id, title, author, cover, format, detail_href, acquisition_href,
+            progress_percent, last_read_time, last_locator_type, last_locator_value, last_chapter_title, save_time
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          ON CONFLICT (username, key) DO UPDATE SET
+            source_id = EXCLUDED.source_id,
+            source_name = EXCLUDED.source_name,
+            book_id = EXCLUDED.book_id,
+            title = EXCLUDED.title,
+            author = EXCLUDED.author,
+            cover = EXCLUDED.cover,
+            format = EXCLUDED.format,
+            detail_href = EXCLUDED.detail_href,
+            acquisition_href = EXCLUDED.acquisition_href,
+            progress_percent = EXCLUDED.progress_percent,
+            last_read_time = EXCLUDED.last_read_time,
+            last_locator_type = EXCLUDED.last_locator_type,
+            last_locator_value = EXCLUDED.last_locator_value,
+            last_chapter_title = EXCLUDED.last_chapter_title,
+            save_time = EXCLUDED.save_time
+        `)
+        .bind(
+          userName, key, item.sourceId, item.sourceName, item.bookId, item.title, item.author || null,
+          item.cover || null, item.format || null, item.detailHref || null, item.acquisitionHref || null, item.progressPercent ?? null,
+          item.lastReadTime ?? null, item.lastLocatorType || null, item.lastLocatorValue || null,
+          item.lastChapterTitle || null, item.saveTime
+        )
+        .run();
+    } catch (err) {
+      console.error('PostgresStorage.setBookShelf error:', err);
+      throw err;
+    }
+  }
+
+  async getAllBookShelf(userName: string): Promise<{ [key: string]: BookShelfItem }> {
+    try {
+      const results = await this.db
+        .prepare('SELECT * FROM book_shelf WHERE username = $1 ORDER BY COALESCE(last_read_time, save_time) DESC')
+        .bind(userName)
+        .all();
+      const shelves: { [key: string]: BookShelfItem } = {};
+      if (!results.results) return shelves;
+      for (const row of results.results) {
+        shelves[row.key as string] = {
+          sourceId: row.source_id as string,
+          sourceName: row.source_name as string,
+          bookId: row.book_id as string,
+          title: row.title as string,
+          author: (row.author as string) || undefined,
+          cover: (row.cover as string) || undefined,
+          format: (row.format as 'epub' | 'pdf' | null) || undefined,
+          detailHref: (row.detail_href as string) || undefined,
+          acquisitionHref: (row.acquisition_href as string) || undefined,
+          progressPercent: row.progress_percent === null || row.progress_percent === undefined ? undefined : Number(row.progress_percent),
+          lastReadTime: row.last_read_time === null || row.last_read_time === undefined ? undefined : Number(row.last_read_time),
+          lastLocatorType: (row.last_locator_type as BookShelfItem['lastLocatorType']) || undefined,
+          lastLocatorValue: (row.last_locator_value as string) || undefined,
+          lastChapterTitle: (row.last_chapter_title as string) || undefined,
+          saveTime: Number(row.save_time || 0),
+        };
+      }
+      return shelves;
+    } catch (err) {
+      console.error('PostgresStorage.getAllBookShelf error:', err);
+      throw err;
+    }
+  }
+
+  async deleteBookShelf(userName: string, key: string): Promise<void> {
+    try {
+      await this.db.prepare('DELETE FROM book_shelf WHERE username = $1 AND key = $2').bind(userName, key).run();
+    } catch (err) {
+      console.error('PostgresStorage.deleteBookShelf error:', err);
+      throw err;
+    }
+  }
+
+  // ==================== 电子书阅读历史 ====================
+
+  async getBookReadRecord(userName: string, key: string): Promise<BookReadRecord | null> {
+    try {
+      const result = await this.db
+        .prepare('SELECT * FROM book_read_records WHERE username = $1 AND key = $2')
+        .bind(userName, key)
+        .first();
+      if (!result) return null;
+      return {
+        sourceId: result.source_id as string,
+        sourceName: result.source_name as string,
+        bookId: result.book_id as string,
+        title: result.title as string,
+        author: (result.author as string) || undefined,
+        cover: (result.cover as string) || undefined,
+        format: result.format as 'epub' | 'pdf',
+        detailHref: (result.detail_href as string) || undefined,
+        acquisitionHref: (result.acquisition_href as string) || undefined,
+        locator: {
+          type: result.locator_type as BookReadRecord['locator']['type'],
+          value: result.locator_value as string,
+          href: (result.chapter_href as string) || undefined,
+          chapterTitle: (result.chapter_title as string) || undefined,
+        },
+        progressPercent: Number(result.progress_percent || 0),
+        chapterTitle: (result.chapter_title as string) || undefined,
+        chapterHref: (result.chapter_href as string) || undefined,
+        saveTime: Number(result.save_time || 0),
+      };
+    } catch (err) {
+      console.error('PostgresStorage.getBookReadRecord error:', err);
+      throw err;
+    }
+  }
+
+  async setBookReadRecord(userName: string, key: string, record: BookReadRecord): Promise<void> {
+    try {
+      await this.db
+        .prepare(`
+          INSERT INTO book_read_records (
+            username, key, source_id, source_name, book_id, title, author, cover, format, detail_href, acquisition_href,
+            locator_type, locator_value, chapter_title, chapter_href, progress_percent, save_time
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          ON CONFLICT (username, key) DO UPDATE SET
+            source_id = EXCLUDED.source_id,
+            source_name = EXCLUDED.source_name,
+            book_id = EXCLUDED.book_id,
+            title = EXCLUDED.title,
+            author = EXCLUDED.author,
+            cover = EXCLUDED.cover,
+            format = EXCLUDED.format,
+            detail_href = EXCLUDED.detail_href,
+            acquisition_href = EXCLUDED.acquisition_href,
+            locator_type = EXCLUDED.locator_type,
+            locator_value = EXCLUDED.locator_value,
+            chapter_title = EXCLUDED.chapter_title,
+            chapter_href = EXCLUDED.chapter_href,
+            progress_percent = EXCLUDED.progress_percent,
+            save_time = EXCLUDED.save_time
+        `)
+        .bind(
+          userName, key, record.sourceId, record.sourceName, record.bookId, record.title, record.author || null,
+          record.cover || null, record.format, record.detailHref || null, record.acquisitionHref || null, record.locator.type, record.locator.value,
+          record.chapterTitle || record.locator.chapterTitle || null, record.chapterHref || record.locator.href || null,
+          record.progressPercent, record.saveTime
+        )
+        .run();
+    } catch (err) {
+      console.error('PostgresStorage.setBookReadRecord error:', err);
+      throw err;
+    }
+  }
+
+  async getAllBookReadRecords(userName: string): Promise<{ [key: string]: BookReadRecord }> {
+    try {
+      const results = await this.db
+        .prepare('SELECT * FROM book_read_records WHERE username = $1 ORDER BY save_time DESC')
+        .bind(userName)
+        .all();
+      const records: { [key: string]: BookReadRecord } = {};
+      if (!results.results) return records;
+      for (const row of results.results) {
+        records[row.key as string] = {
+          sourceId: row.source_id as string,
+          sourceName: row.source_name as string,
+          bookId: row.book_id as string,
+          title: row.title as string,
+          author: (row.author as string) || undefined,
+          cover: (row.cover as string) || undefined,
+          format: row.format as 'epub' | 'pdf',
+          detailHref: (row.detail_href as string) || undefined,
+          acquisitionHref: (row.acquisition_href as string) || undefined,
+          locator: {
+            type: row.locator_type as BookReadRecord['locator']['type'],
+            value: row.locator_value as string,
+            href: (row.chapter_href as string) || undefined,
+            chapterTitle: (row.chapter_title as string) || undefined,
+          },
+          progressPercent: Number(row.progress_percent || 0),
+          chapterTitle: (row.chapter_title as string) || undefined,
+          chapterHref: (row.chapter_href as string) || undefined,
+          saveTime: Number(row.save_time || 0),
+        };
+      }
+      return records;
+    } catch (err) {
+      console.error('PostgresStorage.getAllBookReadRecords error:', err);
+      throw err;
+    }
+  }
+
+  async deleteBookReadRecord(userName: string, key: string): Promise<void> {
+    try {
+      await this.db.prepare('DELETE FROM book_read_records WHERE username = $1 AND key = $2').bind(userName, key).run();
+    } catch (err) {
+      console.error('PostgresStorage.deleteBookReadRecord error:', err);
+      throw err;
+    }
+  }
+
+  async cleanupOldBookReadRecords(userName: string): Promise<void> {
+    try {
+      const maxRecords = parseInt(process.env.MAX_BOOK_HISTORY_PER_USER || '100', 10);
+      const threshold = maxRecords + 10;
+      const countResult = await this.db
+        .prepare('SELECT COUNT(*) as count FROM book_read_records WHERE username = $1')
+        .bind(userName)
+        .first();
+      const count = Number(countResult?.count || 0);
+      if (count <= threshold) return;
+      await this.db
+        .prepare(`
+          DELETE FROM book_read_records
+          WHERE username = $1
+          AND key NOT IN (
+            SELECT key FROM book_read_records
+            WHERE username = $1
+            ORDER BY save_time DESC
+            LIMIT $2
+          )
+        `)
+        .bind(userName, maxRecords)
+        .run();
+    } catch (err) {
+      console.error('PostgresStorage.cleanupOldBookReadRecords error:', err);
+      throw err;
+    }
+  }
+
   // ==================== 跳过配置 ====================
 
   async getSkipConfig(userName: string, source: string, id: string): Promise<SkipConfig | null> {
@@ -2339,7 +2607,7 @@ export class PostgresStorage implements IStorage {
             requested_by, request_count, status, created_at, updated_at,
             fulfilled_at, fulfilled_source, fulfilled_id
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         `)
         .bind(
           request.id,
@@ -2525,10 +2793,9 @@ export class PostgresStorage implements IStorage {
         'search_history',
         'manga_shelf',
         'manga_read_records',
+        'book_shelf',
+        'book_read_records',
         'skip_configs',
-        'music_play_records',
-        'music_playlists',
-        'music_playlist_songs',
         'music_v2_history',
         'music_v2_playlists',
         'music_v2_playlist_items',
@@ -2541,7 +2808,16 @@ export class PostgresStorage implements IStorage {
       ];
 
       for (const table of tables) {
-        await this.db.prepare(`DELETE FROM ${table}`).run();
+        try {
+          await this.db.prepare(`DELETE FROM ${table}`).run();
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (message.includes('no such table') || message.includes('does not exist')) {
+            console.warn('PostgresStorage.clearAllData warning:', table, message);
+            continue;
+          }
+          throw err;
+        }
       }
     } catch (err) {
       console.error('PostgresStorage.clearAllData error:', err);

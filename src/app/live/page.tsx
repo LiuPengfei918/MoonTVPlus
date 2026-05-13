@@ -72,14 +72,22 @@ interface LiveSource {
 }
 
 function LivePageClient() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   // 动态加载浏览器专用库
   useEffect(() => {
     if (typeof window !== 'undefined') {
       import('artplayer').then(mod => { Artplayer = mod.default; });
       import('hls.js').then(mod => { Hls = mod.default; });
       import('flv.js').then(mod => { flvjs = mod.default; });
+
+      const runtimeConfig = (window as any).RUNTIME_CONFIG;
+      if (runtimeConfig?.LIVE_ENABLED === false) {
+        router.replace('/');
+      }
     }
-  }, []);
+  }, [router]);
 
   // -----------------------------------------------------------------------------
   // 状态变量（State）
@@ -90,9 +98,6 @@ function LivePageClient() {
   >('loading');
   const [loadingMessage, setLoadingMessage] = useState('正在加载直播源...');
   const [error, setError] = useState<string | null>(null);
-
-  const searchParams = useSearchParams();
-  const router = useRouter();
 
   // 直播源相关
   const [liveSources, setLiveSources] = useState<LiveSource[]>([]);

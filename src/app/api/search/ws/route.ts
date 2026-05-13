@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
+import { hasFeaturePermission } from '@/lib/permissions';
 import { yellowWords } from '@/lib/yellow';
 import { getProxyToken } from '@/lib/emby-token';
 import {
@@ -39,6 +40,10 @@ export async function GET(request: NextRequest) {
 
   const config = await getConfig();
   const apiSites = await getAvailableApiSites(authInfo.username);
+  const [canAccessOpenList, canAccessEmby] = await Promise.all([
+    hasFeaturePermission(authInfo.username, 'private_library'),
+    hasFeaturePermission(authInfo.username, 'emby'),
+  ]);
 
   // 创建权重映射表
   const weightMap = new Map<string, number>();
@@ -55,6 +60,7 @@ export async function GET(request: NextRequest) {
 
   // 检查是否配置了 OpenList
   const hasOpenList = !!(
+    canAccessOpenList &&
     config.OpenListConfig?.Enabled &&
     config.OpenListConfig?.URL &&
     config.OpenListConfig?.Username &&
@@ -63,6 +69,7 @@ export async function GET(request: NextRequest) {
 
   // 检查是否配置了 Emby（支持多源）
   const hasEmby = !!(
+    canAccessEmby &&
     config.EmbyConfig?.Sources &&
     config.EmbyConfig.Sources.length > 0 &&
     config.EmbyConfig.Sources.some(s => s.enabled && s.ServerURL)

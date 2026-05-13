@@ -77,6 +77,7 @@ export interface AdminConfig {
     Tags?: {
       name: string;
       enabledApis: string[];
+      permissions?: string[];
     }[];
   };
   SourceConfig: {
@@ -125,6 +126,7 @@ export interface AdminConfig {
     cacheVersion: number; // CSS版本号（用于缓存控制）
     loginBackgroundImage?: string; // 登录界面背景图
     registerBackgroundImage?: string; // 注册界面背景图
+    homeBackgroundImage?: string; // 首页背景图
     // 进度条图标配置
     progressThumbType?: 'default' | 'preset' | 'custom'; // 图标类型
     progressThumbPresetId?: string; // 预制图标ID
@@ -149,8 +151,34 @@ export interface AdminConfig {
       Enabled: boolean;
       Cookie: string;
       SavePath: string;
-      PlayTempSavePath: string;
-      OpenListTempPath: string;
+    };
+    Mobile?: {
+      Enabled: boolean;
+      Authorization: string;
+    };
+    Baidu?: {
+      Enabled: boolean;
+      Cookie: string;
+    };
+    Tianyi?: {
+      Enabled: boolean;
+      Account: string;
+      Password: string;
+    };
+    Pan123?: {
+      Enabled: boolean;
+      Account: string;
+      Password: string;
+    };
+    UC?: {
+      Enabled: boolean;
+      Cookie: string;
+      Token?: string;
+      SavePath: string;
+    };
+    Pan115?: {
+      Enabled: boolean;
+      Cookie: string;
     };
   };
   AIConfig?: {
@@ -189,8 +217,6 @@ export interface AdminConfig {
     EnableVideoCardEntry: boolean; // VideoCard入口开关
     EnablePlayPageEntry: boolean; // 播放页入口开关
     EnableAIComments: boolean; // AI评论生成开关
-    // 权限控制
-    AllowRegularUsers: boolean; // 是否允许普通用户使用AI问片（关闭后仅站长和管理员可用）
     // 高级设置
     Temperature?: number; // AI温度参数（0-2），默认0.7
     MaxTokens?: number; // 最大回复token数，默认1000
@@ -253,6 +279,24 @@ export interface AdminConfig {
     SourceIds?: string[]; // 限制可用源
     MaxSources?: number; // 搜索时最多查询多少个源
   };
+  OPDSConfig?: {
+    Enabled: boolean; // 是否启用电子书馆
+    Sources?: Array<{
+      id: string;
+      name: string;
+      url: string;
+      enabled?: boolean;
+      authMode?: 'none' | 'basic' | 'header';
+      username?: string;
+      password?: string;
+      headerName?: string;
+      headerValue?: string;
+      searchTemplate?: string;
+      preferFormat?: Array<'epub' | 'pdf'>;
+      language?: string;
+    }>;
+    CacheTTL?: number;
+  };
   EmailConfig?: {
     enabled: boolean; // 是否启用邮件通知
     provider: 'smtp' | 'resend'; // 邮件发送方式
@@ -276,10 +320,6 @@ export interface AdminConfig {
     BaseUrl?: string; // lxserver 地址
     Token?: string; // lxserver x-user-token
     ProxyEnabled?: boolean; // 是否走 stream 代理
-    // 兼容旧代码的遗留字段（待删除）
-    TuneHubEnabled?: boolean;
-    TuneHubBaseUrl?: string;
-    TuneHubApiKey?: string;
     OpenListCacheEnabled?: boolean;
     OpenListCacheURL?: string;
     OpenListCacheUsername?: string;

@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
     DanmakuAutoLoadDefault: config.SiteConfig.DanmakuAutoLoadDefault !== false,
     loginBackgroundImage: config.ThemeConfig?.loginBackgroundImage || '',
     registerBackgroundImage: config.ThemeConfig?.registerBackgroundImage || '',
+    homeBackgroundImage: config.ThemeConfig?.homeBackgroundImage || '',
     progressThumbType: config.ThemeConfig?.progressThumbType || 'default',
     progressThumbPresetId: config.ThemeConfig?.progressThumbPresetId || '',
     progressThumbCustomUrl: config.ThemeConfig?.progressThumbCustomUrl || '',

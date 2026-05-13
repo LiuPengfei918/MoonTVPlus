@@ -4,6 +4,7 @@ import { AdminConfig } from './admin.types';
 import { MusicPlayRecord } from './db.client';
 import { KvrocksStorage } from './kvrocks.db';
 import { MangaReadRecord, MangaShelfItem } from './manga.types';
+import { BookReadRecord, BookShelfItem } from './book.types';
 import { MusicV2HistoryRecord, MusicV2PlaylistItem, MusicV2PlaylistRecord } from './music-v2';
 import { RedisStorage } from './redis.db';
 import { DanmakuFilterConfig,Favorite, IStorage, PlayRecord, SkipConfig } from './types';
@@ -759,6 +760,40 @@ export class DbManager {
 
   async deleteMangaReadRecord(userName: string, sourceId: string, mangaId: string): Promise<void> {
     await this.storage.deleteMangaReadRecord(userName, generateStorageKey(sourceId, mangaId));
+  }
+
+  // ---------- 电子书书架 ----------
+  async getBookShelf(userName: string, sourceId: string, bookId: string): Promise<BookShelfItem | null> {
+    return this.storage.getBookShelf(userName, generateStorageKey(sourceId, bookId));
+  }
+
+  async saveBookShelf(userName: string, sourceId: string, bookId: string, item: BookShelfItem): Promise<void> {
+    await this.storage.setBookShelf(userName, generateStorageKey(sourceId, bookId), item);
+  }
+
+  async getAllBookShelf(userName: string): Promise<{ [key: string]: BookShelfItem }> {
+    return this.storage.getAllBookShelf(userName);
+  }
+
+  async deleteBookShelf(userName: string, sourceId: string, bookId: string): Promise<void> {
+    await this.storage.deleteBookShelf(userName, generateStorageKey(sourceId, bookId));
+  }
+
+  // ---------- 电子书阅读历史 ----------
+  async getBookReadRecord(userName: string, sourceId: string, bookId: string): Promise<BookReadRecord | null> {
+    return this.storage.getBookReadRecord(userName, generateStorageKey(sourceId, bookId));
+  }
+
+  async saveBookReadRecord(userName: string, sourceId: string, bookId: string, record: BookReadRecord): Promise<void> {
+    await this.storage.setBookReadRecord(userName, generateStorageKey(sourceId, bookId), record);
+  }
+
+  async getAllBookReadRecords(userName: string): Promise<{ [key: string]: BookReadRecord }> {
+    return this.storage.getAllBookReadRecords(userName);
+  }
+
+  async deleteBookReadRecord(userName: string, sourceId: string, bookId: string): Promise<void> {
+    await this.storage.deleteBookReadRecord(userName, generateStorageKey(sourceId, bookId));
   }
 
   // 获取全部用户名

@@ -631,7 +631,7 @@ if (typeof window !== 'undefined') {
 /**
  * 通用的 fetch 函数，处理 401 状态码自动跳转登录
  */
-async function fetchWithAuth(
+export async function fetchWithAuth(
   url: string,
   options?: RequestInit
 ): Promise<Response> {

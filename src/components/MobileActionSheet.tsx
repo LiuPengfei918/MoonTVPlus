@@ -46,7 +46,9 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isTitleOverflowing, setIsTitleOverflowing] = useState(false);
   const backdropPressStarted = useRef(false);
+  const titleRef = useRef<HTMLHeadingElement>(null);
 
   // 确保组件在客户端挂载后才渲染 Portal
   useEffect(() => {
@@ -135,6 +137,32 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
       };
     }
   }, [isVisible]);
+
+  useEffect(() => {
+    const element = titleRef.current;
+    if (!element || !isVisible) {
+      setIsTitleOverflowing(false);
+      return;
+    }
+
+    const checkOverflow = () => {
+      setIsTitleOverflowing(element.scrollWidth > element.clientWidth + 1);
+    };
+
+    checkOverflow();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', checkOverflow);
+      return () => window.removeEventListener('resize', checkOverflow);
+    }
+
+    const observer = new ResizeObserver(checkOverflow);
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isVisible, title]);
 
   // ESC键关闭
   useEffect(() => {
@@ -264,10 +292,21 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
-                  {title}
-                </h3>
+              <div className="flex items-center gap-2 mb-1 min-w-0">
+                <div className="relative min-w-0 flex-1 group/title">
+                  <h3
+                    ref={titleRef}
+                    className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate"
+                  >
+                    {title}
+                  </h3>
+                  {isTitleOverflowing && (
+                    <div className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 rounded-lg bg-gray-800 px-3 py-2 text-sm text-white shadow-xl opacity-0 invisible transition-all duration-200 ease-out whitespace-nowrap pointer-events-none group-hover/title:opacity-100 group-hover/title:visible dark:bg-gray-900">
+                      {title}
+                      <div className="absolute top-full left-1/2 h-0 w-0 -translate-x-1/2 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800 dark:border-t-gray-900"></div>
+                    </div>
+                  )}
+                </div>
                 {sourceName && (
                   <span className="flex-shrink-0 text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800">
                     {origin === 'live' && (
