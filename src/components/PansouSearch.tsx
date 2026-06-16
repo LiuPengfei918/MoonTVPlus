@@ -4,6 +4,7 @@
 import {
   AlertCircle,
   Copy,
+  Download,
   ExternalLink,
   Loader2,
   RefreshCw,
@@ -19,10 +20,19 @@ interface PansouSearchProps {
   keyword: string;
   triggerSearch?: boolean; // 触发搜索的标志
   onError?: (error: string) => void;
+  cloudTypes?: string[];
 }
 
+type DownloadTool = 'aria2' | 'Transmission' | 'qBittorrent';
+
+const downloadToolOptions: Array<{ value: DownloadTool; label: string }> = [
+  { value: 'aria2', label: 'aria2' },
+  { value: 'qBittorrent', label: 'qBittorrent' },
+  { value: 'Transmission', label: 'Transmission' },
+];
+
 // 网盘类型映射
-const CLOUD_TYPE_NAMES: Record<string, string> = {
+export const CLOUD_TYPE_NAMES: Record<string, string> = {
   baidu: '百度网盘',
   aliyun: '阿里云盘',
   quark: '夸克网盘',
@@ -141,6 +151,7 @@ export default function PansouSearch({
   keyword,
   triggerSearch,
   onError,
+  cloudTypes = [],
 }: PansouSearchProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -154,6 +165,12 @@ export default function PansouSearch({
   const typeDragScrollLeftRef = useRef(0);
   const [transferingUrl, setTransferingUrl] = useState<string | null>(null);
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
+  const [downloadingUrl, setDownloadingUrl] = useState<string | null>(null);
+  const [showNameDialog, setShowNameDialog] = useState(false);
+  const [selectedDownloadLink, setSelectedDownloadLink] =
+    useState<PansouLink | null>(null);
+  const [customName, setCustomName] = useState('');
+  const [downloadTool, setDownloadTool] = useState<DownloadTool>('aria2');
   const [toast, setToast] = useState<ToastProps | null>(null);
   const [cooldownRemainingMs, setCooldownRemainingMs] = useState(0);
   const [checkStatesByType, setCheckStatesByType] = useState<
@@ -249,6 +266,7 @@ export default function PansouSearch({
     setLoading(true);
     setError(null);
     setResults(null);
+    setSelectedType('all');
 
     try {
       const response = await fetch('/api/pansou/search', {
@@ -258,6 +276,7 @@ export default function PansouSearch({
         },
         body: JSON.stringify({
           keyword: currentKeyword,
+          cloud_types: cloudTypes,
         }),
       });
 
@@ -275,7 +294,7 @@ export default function PansouSearch({
     } finally {
       setLoading(false);
     }
-  }, [keyword, onError]);
+  }, [keyword, onError, cloudTypes]);
 
   useEffect(() => {
     // triggerSearch 变化时触发搜索（无论是 true 还是 false）
@@ -332,6 +351,64 @@ export default function PansouSearch({
       });
     } finally {
       setTransferingUrl(null);
+    }
+  };
+
+  const handleOpenDownloadDialog = (link: PansouLink) => {
+    setSelectedDownloadLink(link);
+    setCustomName(keyword.trim() || link.note || '');
+    setShowNameDialog(true);
+  };
+
+  const handleCloseDownloadDialog = () => {
+    setShowNameDialog(false);
+    setSelectedDownloadLink(null);
+    setCustomName('');
+    setDownloadTool('aria2');
+  };
+
+  const handleConfirmDownload = async () => {
+    if (!selectedDownloadLink || !customName.trim()) {
+      return;
+    }
+
+    setDownloadingUrl(selectedDownloadLink.url);
+    setShowNameDialog(false);
+
+    try {
+      const response = await fetch('/api/acg/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: selectedDownloadLink.url,
+          name: customName.trim(),
+          tool: downloadTool,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '添加下载任务失败');
+      }
+
+      setToast({
+        message: data.message || '已添加到离线下载队列',
+        type: 'success',
+        onClose: () => setToast(null),
+      });
+    } catch (err: any) {
+      setToast({
+        message: err?.message || '添加下载任务失败',
+        type: 'error',
+        onClose: () => setToast(null),
+      });
+    } finally {
+      setDownloadingUrl(null);
+      setSelectedDownloadLink(null);
+      setCustomName('');
+      setDownloadTool('aria2');
     }
   };
 
@@ -798,6 +875,30 @@ export default function PansouSearch({
                             )}
                           </>
                         )}
+                        {cloudType === 'magnet' && (
+                          <button
+                            onClick={() => handleOpenDownloadDialog(link)}
+                            disabled={downloadingUrl === link.url}
+                            className='flex items-center gap-1.5 px-2 py-1 rounded-md bg-green-600 hover:bg-green-700 text-white text-xs transition-colors disabled:opacity-60'
+                            title='存到私人影库'
+                          >
+                            {downloadingUrl === link.url ? (
+                              <>
+                                <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                                <span className='hidden sm:inline'>
+                                  下载中...
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <Download className='h-3.5 w-3.5' />
+                                <span className='hidden sm:inline'>
+                                  存到私人影库
+                                </span>
+                              </>
+                            )}
+                          </button>
+                        )}
                         <button
                           onClick={() =>
                             handleCopy(
@@ -877,6 +978,52 @@ export default function PansouSearch({
   return (
     <>
       <div className='space-y-6'>{renderBody()}</div>
+      {showNameDialog && (
+        <div className='fixed inset-0 z-[1000] flex items-center justify-center bg-black/50'>
+          <div className='bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl'>
+            <h3 className='text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4'>
+              设置资源名称
+            </h3>
+            <input
+              type='text'
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              placeholder='请输入资源名称'
+              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500'
+              autoFocus
+            />
+            <label className='mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300'>
+              下载方式
+            </label>
+            <select
+              value={downloadTool}
+              onChange={(e) => setDownloadTool(e.target.value as DownloadTool)}
+              className='mt-1 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500'
+            >
+              {downloadToolOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <div className='mt-4 flex gap-2 justify-end'>
+              <button
+                onClick={handleCloseDownloadDialog}
+                className='px-4 py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors'
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmDownload}
+                disabled={!customName.trim()}
+                className='px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {toast && <Toast {...toast} />}
     </>
   );

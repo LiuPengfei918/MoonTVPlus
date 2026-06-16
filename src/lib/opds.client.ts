@@ -234,7 +234,7 @@ async function resolveOPDSConfig(): Promise<ResolvedOPDSConfig> {
   return {
     enabled,
     cacheTTL,
-    sources: (sources || []).filter((source) => !!source?.url && source.enabled !== false),
+    sources: (sources || []).filter((source) => !!source?.url && source.enabled !== false && (source.type || 'opds') === 'opds' && !source.legado),
   };
 }
 
@@ -484,17 +484,26 @@ export class OPDSClient {
     };
   }
 
+  async getSearchSources(sourceId?: string): Promise<BookSource[]> {
+    return sourceId ? [await getSourceById(sourceId)] : (await resolveOPDSConfig()).sources;
+  }
+
+  async searchBooksSource(q: string, source: BookSource): Promise<{ source: BookSource; results: BookListItem[] }> {
+    const targetUrl = await resolveSearchTargetUrl(source, q);
+    if (!targetUrl) throw new Error('未配置可用的搜索地址');
+    const feed = await getFeed(source, targetUrl);
+    return { source, results: feed.entries.map((entry) => mapEntryToItem(source, entry)) };
+  }
+
   async searchBooks(q: string, sourceId?: string): Promise<BookSearchResult> {
-    const sources = sourceId ? [await getSourceById(sourceId)] : (await resolveOPDSConfig()).sources;
+    const sources = await this.getSearchSources(sourceId);
     const results: BookListItem[] = [];
     const failedSources: BookSearchFailure[] = [];
 
     await Promise.all(sources.map(async (source) => {
       try {
-        const targetUrl = await resolveSearchTargetUrl(source, q);
-        if (!targetUrl) throw new Error('未配置可用的搜索地址');
-        const feed = await getFeed(source, targetUrl);
-        results.push(...feed.entries.map((entry) => mapEntryToItem(source, entry)));
+        const sourceResult = await this.searchBooksSource(q, source);
+        results.push(...sourceResult.results);
       } catch (error) {
         failedSources.push({ sourceId: source.id, sourceName: source.name, error: (error as Error).message });
       }

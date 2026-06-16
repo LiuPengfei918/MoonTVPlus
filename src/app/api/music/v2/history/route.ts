@@ -15,7 +15,7 @@ function toHistoryRecord(input: any, previous?: MusicV2HistoryRecord): MusicV2Hi
     lastPlayedAt: Number(input.lastPlayedAt ?? input.last_played_at ?? now),
     playCount: Number(input.playCount ?? input.play_count ?? ((previous?.playCount || 0) + 1)),
     lastQuality: input.lastQuality || input.last_quality || previous?.lastQuality,
-    createdAt: Number(input.createdAt ?? input.created_at ?? previous?.createdAt ?? now),
+    createdAt: Number(previous?.createdAt ?? input.createdAt ?? input.created_at ?? now),
     updatedAt: now,
   };
 }

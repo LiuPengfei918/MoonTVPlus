@@ -31,6 +31,15 @@ interface AddToPlaylistModalProps {
   onError?: (message: string) => void;
 }
 
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
+
 function MusicLoadingIndicator({
   text,
   size = 'md',
@@ -139,7 +148,7 @@ export default function AddToPlaylistModal({
         await loadPlaylists();
       } else {
         const data = await response.json();
-        onError?.(data.error || '创建歌单失败');
+        onError?.(getApiErrorMessage(data.error, '创建歌单失败'));
       }
     } catch (error) {
       console.error('创建歌单失败:', error);
@@ -175,7 +184,7 @@ export default function AddToPlaylistModal({
         onClose();
       } else {
         const data = await response.json();
-        onError?.(data.error || '添加失败');
+        onError?.(getApiErrorMessage(data.error, '添加失败'));
       }
     } catch (error) {
       console.error('添加到歌单失败:', error);
