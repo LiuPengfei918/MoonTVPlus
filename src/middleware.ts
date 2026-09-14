@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isAccessTokenInvalidated } from '@/lib/access-token-invalidation';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { TOKEN_CONFIG } from '@/lib/refresh-token';
-import { isTVModeEnabled } from '@/lib/tv-mode';
+import { isTVModeEnabled, resolveLoginPath } from '@/lib/tv-mode';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -158,9 +158,7 @@ function handleAuthFailure(
   }
 
   // TV 端页面未授权时进入电视扫码登录页
-  const loginUrl = pathname.startsWith('/tv')
-    ? new URL('/tv/login', request.url)
-    : new URL('/login', request.url);
+  const loginUrl = new URL(resolveLoginPath(pathname), request.url);
   // 保留完整的URL，包括查询参数
   const fullUrl = `${pathname}${request.nextUrl.search}`;
   loginUrl.searchParams.set('redirect', fullUrl);
@@ -189,6 +187,6 @@ function isTVModePath(pathname: string): boolean {
 // 配置middleware匹配规则
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|login|register|oidc-register|qr-login|warning|tv/login|api/login|api/register|api/logout|api/auth/oidc|api/auth/qr|api/auth/refresh|api/telegram/login|api/telegram/config|api/telegram/webhook|api/cron/|api/server-config|api/proxy-m3u8|api/cms-proxy|api/tvbox/subscribe|api/theme/css|api/openlist/cms-proxy|api/openlist/play|api/emby/cms-proxy|api/emby/play|api/emby/subtitle|api/emby/sources|tvbox/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|login|register|oidc-register|qr-login|warning|tv/login|api/login|api/register|api/logout|api/auth/oidc|api/auth/qr|api/auth/refresh|api/telegram/login|api/telegram/config|api/telegram/webhook|api/cron/|api/server-config|api/proxy-m3u8|api/cms-proxy|api/tvbox/subscribe|api/theme/css|api/openlist/cms-proxy|api/openlist/play|api/openlist/proxy|api/emby/cms-proxy|api/emby/play|api/emby/subtitle|api/emby/sources|tvbox/).*)',
   ],
 };

@@ -406,6 +406,9 @@ volumes:
   kvrocks-data:
 ```
 （若指定kvrocks-data目录，需要将所挂载的数据目录权限调整为777否则会导致创建数据库失败）
+
+> **指定运行 UID/GID**：容器默认以 `1001:1001`（`nextjs` 用户）运行。可通过 `PUID` / `PGID` 环境变量指定容器进程运行时使用的用户/组 ID。挂载宿主机目录时建议将其设为宿主机目录的属主 UID/GID，容器启动时会自动调整进程属主并修正 `/data`、`/app/.data` 等数据目录的属主，避免权限问题。
+
 ## 配置文件
 
 完成部署后为空壳应用，无播放源，需要站长在管理后台的配置文件设置中填写配置文件，本版本已不支持无数据库运行。
@@ -504,6 +507,7 @@ dockge/komodo 等 docker compose UI 也有自动更新功能
 | NEXT_PUBLIC_ENABLE_SOURCE_SEARCH         | 是否开启源站寻片功能                                         | true/false                  | true                                                         |
 | MAX_PLAY_RECORDS_PER_USER                | 单个用户播放记录清理阈值（超过此数量将自动清理旧记录）       | 正整数                      | 100                                                          |
 | MAX_MANGA_HISTORY_PER_USER              | 单个用户漫画阅读历史保留上限 | 正整数                      | 100                                                          |
+| MAGNET_HEALTH_MAX_CONCURRENT             | 动漫磁力测活全站同时进行的最大任务数（进程内）               | 1-100                       | 10                                                           |
 | INIT_CONFIG                              | 初始配置（JSON 格式，包含 api_site、custom_category、lives 等） | JSON 字符串                 | (空)                                                         |
 | CONFIG_SUBSCRIPTION_URL                  | 配置订阅 URL（Base58 编码的配置文件地址，优先级高于 INIT_CONFIG） | URL                         | (空)                                                         |
 | TMDB_API_KEY                             | TMDB API 密钥                                                | 任意字符串                  | (空)                                                         |
@@ -670,4 +674,4 @@ NEXT_PUBLIC_VOICE_CHAT_STRATEGY 选项解释：
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=mtvpls/moontvplus&type=Date)](https://www.star-history.com/#mtvpls/moontvplus&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=mtvpls/moontvplus&type=Date)](https://star-history.dera.page/#mtvpls/moontvplus&Date)

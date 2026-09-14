@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
+import { normalizeApiBaseUrl } from '@/lib/url';
 
 export const runtime = 'nodejs';
 
@@ -47,12 +48,15 @@ export async function POST(request: NextRequest) {
       TMDBApiKey,
       TMDBProxy,
       TMDBReverseProxy,
+      TMDBImageBaseUrl,
       BangumiDataSource,
       BangumiApiBaseUrl,
       BangumiImageBaseUrl,
       BangumiProxy,
+      LiveChartProxy,
       BannerDataSource,
       RecommendationDataSource,
+      LocalSettingsSyncMode,
       PansouApiUrl,
       PansouUsername,
       PansouPassword,
@@ -107,6 +111,7 @@ export async function POST(request: NextRequest) {
       TMDBApiKey?: string;
       TMDBProxy?: string;
       TMDBReverseProxy?: string;
+      TMDBImageBaseUrl?: string;
       BangumiDataSource?:
         | 'direct'
         | 'server-proxy'
@@ -115,8 +120,10 @@ export async function POST(request: NextRequest) {
       BangumiApiBaseUrl?: string;
       BangumiImageBaseUrl?: string;
       BangumiProxy?: string;
+      LiveChartProxy?: string;
       BannerDataSource?: string;
       RecommendationDataSource?: string;
+      LocalSettingsSyncMode?: 'off' | 'manual' | 'auto';
       PansouApiUrl?: string;
       PansouUsername?: string;
       PansouPassword?: string;
@@ -180,6 +187,8 @@ export async function POST(request: NextRequest) {
       (TMDBProxy !== undefined && typeof TMDBProxy !== 'string') ||
       (TMDBReverseProxy !== undefined &&
         typeof TMDBReverseProxy !== 'string') ||
+      (TMDBImageBaseUrl !== undefined &&
+        typeof TMDBImageBaseUrl !== 'string') ||
       (BangumiDataSource !== undefined &&
         BangumiDataSource !== 'direct' &&
         BangumiDataSource !== 'server-proxy' &&
@@ -190,10 +199,15 @@ export async function POST(request: NextRequest) {
       (BangumiImageBaseUrl !== undefined &&
         typeof BangumiImageBaseUrl !== 'string') ||
       (BangumiProxy !== undefined && typeof BangumiProxy !== 'string') ||
+      (LiveChartProxy !== undefined && typeof LiveChartProxy !== 'string') ||
       (BannerDataSource !== undefined &&
         typeof BannerDataSource !== 'string') ||
       (RecommendationDataSource !== undefined &&
         typeof RecommendationDataSource !== 'string') ||
+      (LocalSettingsSyncMode !== undefined &&
+        LocalSettingsSyncMode !== 'off' &&
+        LocalSettingsSyncMode !== 'manual' &&
+        LocalSettingsSyncMode !== 'auto') ||
       (PansouKeywordBlocklist !== undefined &&
         typeof PansouKeywordBlocklist !== 'string') ||
       (MagnetProxy !== undefined && typeof MagnetProxy !== 'string') ||
@@ -264,6 +278,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 更新缓存中的站点设置
+    // API Base URL 统一去尾斜杠，避免运行时拼接路径出现 //
     adminConfig.SiteConfig = {
       SiteName,
       Announcement,
@@ -271,33 +286,36 @@ export async function POST(request: NextRequest) {
       SearchDownstreamMaxPage,
       SiteInterfaceCacheTime,
       DoubanProxyType,
-      DoubanProxy,
+      DoubanProxy: normalizeApiBaseUrl(DoubanProxy),
       DoubanImageProxyType,
-      DoubanImageProxy,
+      DoubanImageProxy: normalizeApiBaseUrl(DoubanImageProxy),
       DisableYellowFilter,
       FluidSearch,
       DanmakuSourceType,
-      DanmakuApiBase,
+      DanmakuApiBase: normalizeApiBaseUrl(DanmakuApiBase),
       DanmakuApiToken,
       DanmakuAutoLoadDefault,
       TMDBApiKey,
-      TMDBProxy,
-      TMDBReverseProxy,
+      TMDBProxy: normalizeApiBaseUrl(TMDBProxy),
+      TMDBReverseProxy: normalizeApiBaseUrl(TMDBReverseProxy),
+      TMDBImageBaseUrl: normalizeApiBaseUrl(TMDBImageBaseUrl),
       BangumiDataSource,
-      BangumiApiBaseUrl,
-      BangumiImageBaseUrl,
-      BangumiProxy,
+      BangumiApiBaseUrl: normalizeApiBaseUrl(BangumiApiBaseUrl),
+      BangumiImageBaseUrl: normalizeApiBaseUrl(BangumiImageBaseUrl),
+      BangumiProxy: normalizeApiBaseUrl(BangumiProxy),
+      LiveChartProxy: normalizeApiBaseUrl(LiveChartProxy),
       BannerDataSource,
       RecommendationDataSource,
-      PansouApiUrl,
+      LocalSettingsSyncMode,
+      PansouApiUrl: normalizeApiBaseUrl(PansouApiUrl),
       PansouUsername,
       PansouPassword,
       PansouKeywordBlocklist,
-      MagnetProxy,
-      MagnetMikanReverseProxy,
-      MagnetDmhyReverseProxy,
-      MagnetAcgripReverseProxy,
-      MagnetNyaaReverseProxy,
+      MagnetProxy: normalizeApiBaseUrl(MagnetProxy),
+      MagnetMikanReverseProxy: normalizeApiBaseUrl(MagnetMikanReverseProxy),
+      MagnetDmhyReverseProxy: normalizeApiBaseUrl(MagnetDmhyReverseProxy),
+      MagnetAcgripReverseProxy: normalizeApiBaseUrl(MagnetAcgripReverseProxy),
+      MagnetNyaaReverseProxy: normalizeApiBaseUrl(MagnetNyaaReverseProxy),
       EnableComments,
       CustomAdFilterCode,
       CustomAdFilterVersion,
@@ -311,7 +329,7 @@ export async function POST(request: NextRequest) {
       DefaultUserTags,
       EnableOIDCLogin,
       EnableOIDCRegistration,
-      OIDCIssuer,
+      OIDCIssuer: normalizeApiBaseUrl(OIDCIssuer),
       OIDCAuthorizationEndpoint,
       OIDCTokenEndpoint,
       OIDCUserInfoEndpoint,
