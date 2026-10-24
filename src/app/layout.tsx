@@ -105,6 +105,8 @@ export default async function RootLayout({
   let progressThumbType = 'default';
   let progressThumbPresetId = '';
   let progressThumbCustomUrl = '';
+  let loadingStyle = 'talisman';
+  let rateBadgeStyle = 'flag';
   let enableRegistration = false;
   let requireRegistrationInviteCode = false;
   let loginRequireTurnstile = false;
@@ -139,6 +141,10 @@ export default async function RootLayout({
   let musicProxyEnabled = true;
   let advancedRecommendationEnabled = false;
   let localSettingsSyncMode: 'off' | 'manual' | 'auto' = 'off';
+  // 特殊源名单：供客户端按入口隔离收藏与播放记录。
+  // 入口开关是本机 cookie，与存储模式无关，所以 localstorage 模式也要注入；
+  // getConfig() 有模块级缓存，generateMetadata 里已经调过一次，这里不产生额外读取。
+  const specialSourceApis = (await getConfig()).SpecialSourceApis || [];
   let userFeatureAccess =
     storageType === 'localstorage'
       ? await getUserFeatureAccess(process.env.USERNAME || 'localstorage-owner')
@@ -189,6 +195,20 @@ export default async function RootLayout({
     progressThumbType = config.ThemeConfig?.progressThumbType || 'default';
     progressThumbPresetId = config.ThemeConfig?.progressThumbPresetId || '';
     progressThumbCustomUrl = config.ThemeConfig?.progressThumbCustomUrl || '';
+    // 白名单兜底：值异常时回落到魔法阵（现行默认），避免三种款式都不显示
+    loadingStyle =
+      config.ThemeConfig?.loadingStyle === 'classic' ||
+      config.ThemeConfig?.loadingStyle === 'grid' ||
+      config.ThemeConfig?.loadingStyle === 'talisman'
+        ? config.ThemeConfig.loadingStyle
+        : 'talisman';
+    // 白名单兜底：值异常时回落到默认锦旗徽章
+    rateBadgeStyle =
+      config.ThemeConfig?.rateBadgeStyle === 'default' ||
+      config.ThemeConfig?.rateBadgeStyle === 'flag' ||
+      config.ThemeConfig?.rateBadgeStyle === 'medal'
+        ? config.ThemeConfig.rateBadgeStyle
+        : 'flag';
     enableRegistration = config.SiteConfig.EnableRegistration || false;
     requireRegistrationInviteCode =
       config.SiteConfig.RequireRegistrationInviteCode || false;
@@ -348,10 +368,17 @@ export default async function RootLayout({
     NETDISK_TRANSFER_ENABLED: userFeatureAccess.netdisk_transfer,
     NETDISK_TEMP_PLAY_ENABLED: userFeatureAccess.netdisk_temp_play,
     FESTIVE_EFFECT_ENABLED: process.env.FESTIVE_EFFECT_ENABLED === 'true',
+    SPECIAL_SOURCE_APIS: specialSourceApis,
+    RATE_BADGE_STYLE: rateBadgeStyle,
   };
 
   return (
-    <html lang='zh-CN' data-moontvplus='1' suppressHydrationWarning>
+    <html
+      lang='zh-CN'
+      data-moontvplus='1'
+      data-loading-style={loadingStyle}
+      suppressHydrationWarning
+    >
       <head>
         {/* 配套 moontvplus-extension 识别指纹；仅本项目部署站应带此标记 */}
         <meta name='moontvplus-site' content='1' />
