@@ -3,11 +3,16 @@ import { NextRequest } from 'next/server';
 
 import type { AdminConfig } from '@/lib/admin.types';
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig, setCachedConfig } from '@/lib/config';
+import { configSelfCheck, getConfig, setCachedConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
 import { POST as changePassword } from './route';
 import { POST as manageUser } from '../admin/user/route';
+import {
+  DELETE as revokeDevice,
+  GET as listDevices,
+  POST as revokeAllDevices,
+} from '../auth/devices/route';
 
 jest.mock('next/server', () => {
   return {
@@ -33,6 +38,7 @@ jest.mock('next/server', () => {
       ) => ({
         status: init?.status || 200,
         headers: init?.headers || {},
+        cookies: { set: jest.fn() },
         json: async () => body,
       }),
     },
@@ -41,6 +47,7 @@ jest.mock('next/server', () => {
 
 jest.mock('@/lib/auth', () => ({ getAuthInfoFromCookie: jest.fn() }));
 jest.mock('@/lib/config', () => ({
+  configSelfCheck: jest.fn((config) => config),
   getConfig: jest.fn(),
   setCachedConfig: jest.fn(),
 }));
@@ -50,6 +57,7 @@ jest.mock('@/lib/db', () => ({
     getUserInfoV2: jest.fn(),
     changePasswordV2: jest.fn(),
     saveAdminConfig: jest.fn(),
+    getUserDevices: jest.fn(async () => []),
   },
   getStorage: jest.fn(() => ({})),
 }));
@@ -215,5 +223,62 @@ describe('管理员设置用户改密权限', () => {
     );
     expect(response.status).toBe(403);
     expect(storage.changePasswordV2).not.toHaveBeenCalled();
+  });
+});
+
+describe('用户设备管理权限', () => {
+  it('禁用后拒绝列设备、撤销设备和登出所有设备', async () => {
+    config.UserConfig.DeviceManagementDisabledUsers = ['alice'];
+    expect((await listDevices(request({}))).status).toBe(403);
+    expect((await revokeDevice(request({ tokenId: 'device-1' }))).status).toBe(
+      403
+    );
+    expect((await revokeAllDevices(request({}))).status).toBe(403);
+  });
+  it('启用时保留设备列表及撤销功能', async () => {
+    expect((await listDevices(request({}))).status).toBe(200);
+    expect((await revokeDevice(request({ tokenId: 'device-1' }))).status).toBe(
+      200
+    );
+    expect((await revokeAllDevices(request({}))).status).toBe(200);
+  });
+  it('管理员可以独立禁用和恢复普通用户的设备管理权限', async () => {
+    auth.mockReturnValue({ username: 'admin', role: 'admin' });
+    config.UserConfig.DeviceManagementDisabledUsers = ['bob'];
+    expect(
+      (
+        await manageUser(
+          request({
+            action: 'setUserDeviceManagement',
+            targetUsername: 'alice',
+            enabled: false,
+          })
+        )
+      ).status
+    ).toBe(200);
+    expect(config.UserConfig.DeviceManagementDisabledUsers).toEqual([
+      'bob',
+      'alice',
+    ]);
+    expect(storage.saveAdminConfig).toHaveBeenCalledWith(config);
+    expect(setCachedConfig).toHaveBeenCalledWith(config);
+    auth.mockReturnValue({ username: 'alice' });
+    expect((await listDevices(request({}))).status).toBe(403);
+
+    auth.mockReturnValue({ username: 'admin', role: 'admin' });
+    expect(
+      (
+        await manageUser(
+          request({
+            action: 'setUserDeviceManagement',
+            targetUsername: 'alice',
+            enabled: true,
+          })
+        )
+      ).status
+    ).toBe(200);
+    expect(config.UserConfig.DeviceManagementDisabledUsers).toEqual(['bob']);
+    auth.mockReturnValue({ username: 'alice' });
+    expect((await listDevices(request({}))).status).toBe(200);
   });
 });

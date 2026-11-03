@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { invalidateUserAccessTokens } from '@/lib/access-token-invalidation';
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig, setCachedConfig } from '@/lib/config';
+import { configSelfCheck, getConfig, setCachedConfig } from '@/lib/config';
 import { db, getStorage } from '@/lib/db';
 import { sanitizeFeaturePermissions } from '@/lib/feature-permissions';
 import { revokeAllRefreshTokens } from '@/lib/refresh-token';
@@ -38,6 +38,7 @@ const ACTIONS = [
   'updateUserGroups',
   'batchUpdateUserGroups',
   'setUserPasswordChange',
+  'setUserDeviceManagement',
 ] as const;
 
 export async function POST(request: NextRequest) {
@@ -95,7 +96,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取配置与存储
-    const adminConfig = (await db.getAdminConfig()) || (await getConfig());
+    const storedConfig = await db.getAdminConfig();
+    const adminConfig = storedConfig
+      ? configSelfCheck(storedConfig)
+      : await getConfig();
 
     // 判定操作者角色
     let operatorRole: 'owner' | 'admin';
@@ -356,6 +360,10 @@ export async function POST(request: NextRequest) {
           adminConfig.UserConfig.PasswordChangeDisabledUsers?.filter(
             (name) => name !== targetUsername
           );
+        adminConfig.UserConfig.DeviceManagementDisabledUsers =
+          adminConfig.UserConfig.DeviceManagementDisabledUsers?.filter(
+            (name) => name !== targetUsername
+          );
 
         break;
       }
@@ -527,6 +535,23 @@ export async function POST(request: NextRequest) {
         if (enabled) disabledUsers.delete(targetUsername!);
         else disabledUsers.add(targetUsername!);
         adminConfig.UserConfig.PasswordChangeDisabledUsers = Array.from(disabledUsers);
+        break;
+      }
+      case 'setUserDeviceManagement': {
+        const { enabled } = body as { enabled?: boolean };
+        if (typeof enabled !== 'boolean') {
+          return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
+        }
+        if (!targetEntry) {
+          return NextResponse.json({ error: '目标用户不存在' }, { status: 404 });
+        }
+        if (isTargetAdmin && operatorRole !== 'owner') {
+          return NextResponse.json({ error: '仅站长可配置管理员的设备管理权限' }, { status: 403 });
+        }
+        const disabledUsers = new Set(adminConfig.UserConfig.DeviceManagementDisabledUsers || []);
+        if (enabled) disabledUsers.delete(targetUsername!);
+        else disabledUsers.add(targetUsername!);
+        adminConfig.UserConfig.DeviceManagementDisabledUsers = Array.from(disabledUsers);
         break;
       }
       default:

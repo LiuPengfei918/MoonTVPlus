@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { invalidateDeviceAccessToken, invalidateUserAccessTokens } from '@/lib/access-token-invalidation';
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getStorage } from '@/lib/db';
+import { db, getStorage } from '@/lib/db';
 import {
   getUserDevices,
   revokeAllRefreshTokens,
@@ -13,12 +13,21 @@ import {
 
 export const runtime = 'nodejs';
 
+async function isDeviceManagementDisabled(username: string): Promise<boolean> {
+  const config = await db.getAdminConfig();
+  return config?.UserConfig?.DeviceManagementDisabledUsers?.includes(username) === true;
+}
+
 // 获取所有设备
 export async function GET(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
 
   if (!authInfo || !authInfo.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (await isDeviceManagementDisabled(authInfo.username)) {
+    return NextResponse.json({ error: '管理员已禁用设备管理功能' }, { status: 403 });
   }
 
   try {
@@ -43,6 +52,10 @@ export async function DELETE(request: NextRequest) {
 
   if (!authInfo || !authInfo.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (await isDeviceManagementDisabled(authInfo.username)) {
+    return NextResponse.json({ error: '管理员已禁用设备管理功能' }, { status: 403 });
   }
 
   try {
@@ -70,6 +83,10 @@ export async function POST(request: NextRequest) {
 
   if (!authInfo || !authInfo.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (await isDeviceManagementDisabled(authInfo.username)) {
+    return NextResponse.json({ error: '管理员已禁用设备管理功能' }, { status: 403 });
   }
 
   try {

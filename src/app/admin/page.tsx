@@ -893,6 +893,26 @@ const UserConfig = ({
     });
   };
 
+  const handleUserDeviceManagementToggle = async (targetUsername: string) => {
+    await withLoading(`toggleUserDeviceManagement_${targetUsername}`, async () => {
+      try {
+        const enabled =
+          config?.UserConfig.DeviceManagementDisabledUsers?.includes(targetUsername) === true;
+        const response = await fetch('/api/admin/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'setUserDeviceManagement', targetUsername, enabled }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || '设置失败');
+        await refreshConfig();
+        showSuccess(enabled ? '已允许用户自行管理设备' : '已禁用用户自行管理设备', showAlert);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '设置失败', showAlert);
+      }
+    });
+  };
+
   const handleSetAdmin = async (uname: string) => {
     await withLoading(`setAdmin_${uname}`, () =>
       handleUserAction('setAdmin', uname)
@@ -1818,6 +1838,8 @@ const UserConfig = ({
 
                       const passwordChangeDisabled =
                         config.UserConfig.PasswordChangeDisabledUsers?.includes(user.username) === true;
+                      const deviceManagementDisabled =
+                        config.UserConfig.DeviceManagementDisabledUsers?.includes(user.username) === true;
                       const canManagePasswordChange =
                         user.role !== 'owner' &&
                         user.username !== currentUsername &&
@@ -1873,6 +1895,11 @@ const UserConfig = ({
                               {passwordChangeDisabled && (
                                 <span className='px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300'>
                                   已禁用自行改密
+                                </span>
+                              )}
+                              {deviceManagementDisabled && (
+                                <span className='px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300'>
+                                  已禁用设备管理
                                 </span>
                               )}
                               {user.oidcSub && (
@@ -1975,6 +2002,18 @@ const UserConfig = ({
                                 {isLoading(`toggleUserPasswordChange_${user.username}`)
                                   ? '保存中…'
                                   : passwordChangeDisabled ? '启用自行改密' : '禁用自行改密'}
+                              </button>
+                            )}
+                            {canManagePasswordChange && (
+                              <button
+                                onClick={() => handleUserDeviceManagementToggle(user.username)}
+                                disabled={isLoading(`toggleUserDeviceManagement_${user.username}`)}
+                                aria-label={`${deviceManagementDisabled ? '启用' : '禁用'} ${user.username} 的设备管理`}
+                                className={`${buttonStyles.roundedSecondary} disabled:opacity-50 disabled:cursor-not-allowed`}
+                              >
+                                {isLoading(`toggleUserDeviceManagement_${user.username}`)
+                                  ? '保存中…'
+                                  : deviceManagementDisabled ? '启用设备管理' : '禁用设备管理'}
                               </button>
                             )}
                             {canChangePassword && (

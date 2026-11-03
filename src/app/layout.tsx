@@ -143,6 +143,7 @@ export default async function RootLayout({
   let advancedRecommendationEnabled = false;
   let localSettingsSyncMode: 'off' | 'manual' | 'auto' = 'off';
   let userPasswordChangeEnabled = true;
+  let userDeviceManagementEnabled = true;
   // 特殊源名单：供客户端按入口隔离收藏与播放记录。
   // 入口开关是本机 cookie，与存储模式无关，所以 localstorage 模式也要注入；
   // getConfig() 有模块级缓存，generateMetadata 里已经调过一次，这里不产生额外读取。
@@ -164,6 +165,7 @@ export default async function RootLayout({
     const config = await getConfig();
     const passwordPolicyConfig = (await db.getAdminConfig()) || config;
     userPasswordChangeEnabled = !passwordPolicyConfig.UserConfig.PasswordChangeDisabledUsers?.includes(authInfo?.username || '');
+    userDeviceManagementEnabled = !passwordPolicyConfig.UserConfig.DeviceManagementDisabledUsers?.includes(authInfo?.username || '');
     siteName = config.SiteConfig.SiteName;
     announcement = config.SiteConfig.Announcement;
     announcementDisplayMode =
@@ -339,6 +341,7 @@ export default async function RootLayout({
     PROGRESS_THUMB_CUSTOM_URL: progressThumbCustomUrl,
     ENABLE_REGISTRATION: enableRegistration,
     ENABLE_USER_PASSWORD_CHANGE: userPasswordChangeEnabled,
+    ENABLE_USER_DEVICE_MANAGEMENT: userDeviceManagementEnabled,
     REQUIRE_REGISTRATION_INVITE_CODE: requireRegistrationInviteCode,
     LOGIN_REQUIRE_TURNSTILE: loginRequireTurnstile,
     REGISTRATION_REQUIRE_TURNSTILE: registrationRequireTurnstile,

@@ -102,6 +102,7 @@ export interface AdminConfig {
   };
   UserConfig: {
     PasswordChangeDisabledUsers?: string[]; // 禁止自行修改密码的用户名，默认允许
+    DeviceManagementDisabledUsers?: string[]; // 禁止自行管理登录设备的用户名，默认允许
     Users: {
       username: string;
       role: 'user' | 'admin' | 'owner';

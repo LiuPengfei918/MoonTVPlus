@@ -261,6 +261,7 @@ export const UserMenu: React.FC = () => {
   // 设备管理状态
   const [devices, setDevices] = useState<any[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
+  const [deviceManagementEnabled, setDeviceManagementEnabled] = useState(true);
   const [revoking, setRevoking] = useState<string | null>(null);
 
   // 确认对话框状态
@@ -1247,6 +1248,24 @@ export const UserMenu: React.FC = () => {
       console.error('加载设备列表失败:', error);
     } finally {
       setDevicesLoading(false);
+    }
+  };
+
+  const refreshDeviceManagementPermission = async () => {
+    if (storageType === 'localstorage') {
+      setDeviceManagementEnabled(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/devices', { cache: 'no-store' });
+      if (response.status === 403) {
+        setDeviceManagementEnabled(false);
+      } else if (response.ok) {
+        setDeviceManagementEnabled(true);
+      }
+    } catch (error) {
+      console.error('检查设备管理权限失败:', error);
     }
   };
 
@@ -2973,6 +2992,7 @@ export const UserMenu: React.FC = () => {
   const handleOpenProfileCenter = () => {
     setIsOpen(false);
     setIsProfileCenterOpen(true);
+    void refreshDeviceManagementPermission();
   };
 
   // 菜单面板内容
@@ -6264,7 +6284,12 @@ export const UserMenu: React.FC = () => {
         showRoleBadge={shouldShowRoleBadge}
         avatarText={avatarText}
         roleBadgeClassName={roleBadgeClassName}
-        showDeviceManagement={storageType !== 'localstorage'}
+        showDeviceManagement={
+          storageType !== 'localstorage' &&
+          typeof window !== 'undefined' &&
+          (window as any).RUNTIME_CONFIG?.ENABLE_USER_DEVICE_MANAGEMENT !== false &&
+          deviceManagementEnabled
+        }
         showChangePassword={showChangePassword}
         onOpenEmailSettings={() => {
           setIsProfileCenterOpen(false);
