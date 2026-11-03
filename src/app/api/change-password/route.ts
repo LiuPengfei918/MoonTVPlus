@@ -40,6 +40,15 @@ export async function POST(request: NextRequest) {
 
     const username = authInfo.username;
 
+    // 权限直接从持久化配置读取，避免不同 Worker 实例的配置缓存延迟。
+    const config = await db.getAdminConfig();
+    if (config?.UserConfig.PasswordChangeDisabledUsers?.includes(username)) {
+      return NextResponse.json(
+        { error: '管理员已禁用用户自行修改密码' },
+        { status: 403 }
+      );
+    }
+
     // 不允许站长修改密码（站长用户名等于 process.env.USERNAME）
     if (username === process.env.USERNAME) {
       return NextResponse.json(

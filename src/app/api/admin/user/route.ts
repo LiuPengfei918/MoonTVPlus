@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { invalidateUserAccessTokens } from '@/lib/access-token-invalidation';
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getConfig } from '@/lib/config';
+import { getConfig, setCachedConfig } from '@/lib/config';
 import { db, getStorage } from '@/lib/db';
 import { sanitizeFeaturePermissions } from '@/lib/feature-permissions';
 import { revokeAllRefreshTokens } from '@/lib/refresh-token';
@@ -37,6 +37,7 @@ const ACTIONS = [
   'userGroup',
   'updateUserGroups',
   'batchUpdateUserGroups',
+  'setUserPasswordChange',
 ] as const;
 
 export async function POST(request: NextRequest) {
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取配置与存储
-    const adminConfig = await getConfig();
+    const adminConfig = (await db.getAdminConfig()) || (await getConfig());
 
     // 判定操作者角色
     let operatorRole: 'owner' | 'admin';
@@ -282,6 +283,15 @@ export async function POST(request: NextRequest) {
         break;
       }
       case 'changePassword': {
+        if (
+          username === targetUsername &&
+          adminConfig.UserConfig.PasswordChangeDisabledUsers?.includes(username)
+        ) {
+          return NextResponse.json(
+            { error: '管理员已禁用用户自行修改密码' },
+            { status: 403 }
+          );
+        }
         if (!targetEntry) {
           return NextResponse.json(
             { error: '目标用户不存在' },
@@ -342,6 +352,10 @@ export async function POST(request: NextRequest) {
         // 先终止目标用户所有会话，再删除V2存储中的用户
         await terminateUserSessions(targetUsername!, 'user deleted');
         await db.deleteUserV2(targetUsername!);
+        adminConfig.UserConfig.PasswordChangeDisabledUsers =
+          adminConfig.UserConfig.PasswordChangeDisabledUsers?.filter(
+            (name) => name !== targetUsername
+          );
 
         break;
       }
@@ -498,12 +512,30 @@ export async function POST(request: NextRequest) {
 
         break;
       }
+      case 'setUserPasswordChange': {
+        const { enabled } = body as { enabled?: boolean };
+        if (typeof enabled !== 'boolean') {
+          return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
+        }
+        if (!targetEntry) {
+          return NextResponse.json({ error: '目标用户不存在' }, { status: 404 });
+        }
+        if (isTargetAdmin && operatorRole !== 'owner') {
+          return NextResponse.json({ error: '仅站长可配置管理员的改密权限' }, { status: 403 });
+        }
+        const disabledUsers = new Set(adminConfig.UserConfig.PasswordChangeDisabledUsers || []);
+        if (enabled) disabledUsers.delete(targetUsername!);
+        else disabledUsers.add(targetUsername!);
+        adminConfig.UserConfig.PasswordChangeDisabledUsers = Array.from(disabledUsers);
+        break;
+      }
       default:
         return NextResponse.json({ error: '未知操作' }, { status: 400 });
     }
 
     // 将更新后的配置写入数据库
     await db.saveAdminConfig(adminConfig);
+    await setCachedConfig(adminConfig);
 
     return NextResponse.json(
       { ok: true },

@@ -2938,7 +2938,10 @@ export const UserMenu: React.FC = () => {
 
   // 检查是否显示修改密码按钮
   const showChangePassword =
-    authInfo?.role !== 'owner' && storageType !== 'localstorage';
+    authInfo?.role !== 'owner' &&
+    storageType !== 'localstorage' &&
+    typeof window !== 'undefined' &&
+    (window as any).RUNTIME_CONFIG?.ENABLE_USER_PASSWORD_CHANGE !== false;
 
   // 角色中文映射
   const getRoleText = (role?: string) => {

@@ -874,6 +874,25 @@ const UserConfig = ({
     );
   };
 
+  const handleUserPasswordChangeToggle = async (targetUsername: string) => {
+    await withLoading(`toggleUserPasswordChange_${targetUsername}`, async () => {
+      try {
+        const enabled = config?.UserConfig.PasswordChangeDisabledUsers?.includes(targetUsername) === true;
+        const response = await fetch('/api/admin/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'setUserPasswordChange', targetUsername, enabled }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || '设置失败');
+        await refreshConfig();
+        showSuccess(enabled ? '已允许用户自行修改密码' : '已禁用用户自行修改密码', showAlert);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '设置失败', showAlert);
+      }
+    });
+  };
+
   const handleSetAdmin = async (uname: string) => {
     await withLoading(`setAdmin_${uname}`, () =>
       handleUserAction('setAdmin', uname)
@@ -1797,6 +1816,13 @@ const UserConfig = ({
                             (user.role === 'user' ||
                               user.username === currentUsername))); // 管理员可以修改普通用户和自己的密码
 
+                      const passwordChangeDisabled =
+                        config.UserConfig.PasswordChangeDisabledUsers?.includes(user.username) === true;
+                      const canManagePasswordChange =
+                        user.role !== 'owner' &&
+                        user.username !== currentUsername &&
+                        (role === 'owner' || (role === 'admin' && user.role === 'user'));
+
                       // 删除用户权限：站长可删除除自己外的所有用户，管理员仅可删除普通用户
                       const canDeleteUser =
                         user.username !== currentUsername &&
@@ -1844,6 +1870,11 @@ const UserConfig = ({
                           <td className='px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100'>
                             <div className='flex items-center gap-2'>
                               <span>{user.username}</span>
+                              {passwordChangeDisabled && (
+                                <span className='px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300'>
+                                  已禁用自行改密
+                                </span>
+                              )}
                               {user.oidcSub && (
                                 <span className='px-2 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300'>
                                   OIDC
@@ -1934,6 +1965,18 @@ const UserConfig = ({
                               </button>
                             )}
                             {/* 修改密码按钮 */}
+                            {canManagePasswordChange && (
+                              <button
+                                onClick={() => handleUserPasswordChangeToggle(user.username)}
+                                disabled={isLoading(`toggleUserPasswordChange_${user.username}`)}
+                                aria-label={`${passwordChangeDisabled ? '启用' : '禁用'} ${user.username} 自行修改密码`}
+                                className={`${buttonStyles.roundedSecondary} disabled:opacity-50 disabled:cursor-not-allowed`}
+                              >
+                                {isLoading(`toggleUserPasswordChange_${user.username}`)
+                                  ? '保存中…'
+                                  : passwordChangeDisabled ? '启用自行改密' : '禁用自行改密'}
+                              </button>
+                            )}
                             {canChangePassword && (
                               <button
                                 onClick={() =>

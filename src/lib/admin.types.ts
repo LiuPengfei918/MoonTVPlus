@@ -101,6 +101,7 @@ export interface AdminConfig {
     AnalyticsCustomScript?: string; // 自定义统计代码（仅custom模式使用，完整的HTML脚本内容）
   };
   UserConfig: {
+    PasswordChangeDisabledUsers?: string[]; // 禁止自行修改密码的用户名，默认允许
     Users: {
       username: string;
       role: 'user' | 'admin' | 'owner';
