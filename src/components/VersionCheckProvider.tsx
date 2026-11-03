@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 
+import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 import { checkForUpdates, UpdateStatus } from '@/lib/version_check';
 
 interface VersionCheckContextType {
@@ -23,6 +24,12 @@ export const VersionCheckProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
+    const authInfo = getAuthInfoFromBrowserCookie();
+    if (authInfo?.role !== 'owner' && authInfo?.role !== 'admin') {
+      setIsChecking(false);
+      return;
+    }
+
     const checkUpdate = async () => {
       try {
         const status = await checkForUpdates();
