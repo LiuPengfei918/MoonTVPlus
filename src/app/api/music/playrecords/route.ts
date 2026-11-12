@@ -1,5 +1,7 @@
 /* eslint-disable no-console */
 
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -10,7 +12,7 @@ import { getCachedSongs, setCachedSong } from '@/lib/music-song-cache';
 
 export const runtime = 'nodejs';
 
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     const authResult = await requireFeaturePermission(request, 'music', '无权限访问音乐功能');
     if (authResult instanceof NextResponse) return authResult;
@@ -64,7 +66,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const authResult = await requireFeaturePermission(request, 'music', '无权限访问音乐功能');
     if (authResult instanceof NextResponse) return authResult;
@@ -184,7 +186,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
   try {
     const authResult = await requireFeaturePermission(request, 'music', '无权限访问音乐功能');
     if (authResult instanceof NextResponse) return authResult;
@@ -232,3 +234,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);
+export const DELETE = withLocalGuestPolicy(handleDELETE);

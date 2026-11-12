@@ -1,5 +1,7 @@
 /* eslint-disable no-console */
 
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 
@@ -10,7 +12,7 @@ import { requireFeaturePermission } from '@/lib/permissions';
 export const runtime = 'nodejs';
 
 // GET - 获取用户的所有歌单
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     const authResult = await requireFeaturePermission(request, 'music', '无权限访问音乐功能');
     if (authResult instanceof NextResponse) return authResult;
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - 创建新歌单
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const authResult = await requireFeaturePermission(request, 'music', '无权限访问音乐功能');
     if (authResult instanceof NextResponse) return authResult;
@@ -96,7 +98,7 @@ export async function POST(request: NextRequest) {
 }
 
 // PUT - 更新歌单信息
-export async function PUT(request: NextRequest) {
+async function handlePUT(request: NextRequest) {
   try {
     const authResult = await requireFeaturePermission(request, 'music', '无权限访问音乐功能');
     if (authResult instanceof NextResponse) return authResult;
@@ -156,7 +158,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // DELETE - 删除歌单
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
   try {
     const authResult = await requireFeaturePermission(request, 'music', '无权限访问音乐功能');
     if (authResult instanceof NextResponse) return authResult;
@@ -207,3 +209,8 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);
+export const PUT = withLocalGuestPolicy(handlePUT);
+export const DELETE = withLocalGuestPolicy(handleDELETE);

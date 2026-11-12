@@ -1,5 +1,6 @@
 'use client';
 
+import { isLocalGuest, personalStorage } from './local-guest.client';
 import { BookReadRecord, BookShelfItem } from './book.types';
 import { fetchWithAuth, generateStorageKey } from './db.client';
 
@@ -9,7 +10,7 @@ const MAX_BOOK_HISTORY = 100;
 const MAX_BOOK_HISTORY_THRESHOLD = MAX_BOOK_HISTORY + 10;
 
 function isRemoteStorage() {
-  return ((window as Window & { RUNTIME_CONFIG?: { STORAGE_TYPE?: string } }).RUNTIME_CONFIG?.STORAGE_TYPE || process.env.STORAGE_TYPE || 'localstorage') !== 'localstorage';
+  return !isLocalGuest() && ((window as Window & { RUNTIME_CONFIG?: { STORAGE_TYPE?: string } }).RUNTIME_CONFIG?.STORAGE_TYPE || process.env.STORAGE_TYPE || 'localstorage') !== 'localstorage';
 }
 
 function trimRecords(records: Record<string, BookReadRecord>) {
@@ -21,7 +22,7 @@ function trimRecords(records: Record<string, BookReadRecord>) {
 function readBookHistoryCache(): Record<string, BookReadRecord> {
   if (typeof window === 'undefined') return {};
   try {
-    const raw = localStorage.getItem(BOOK_HISTORY_KEY);
+    const raw = personalStorage.getItem(BOOK_HISTORY_KEY);
     return raw ? (JSON.parse(raw) as Record<string, BookReadRecord>) : {};
   } catch {
     return {};
@@ -30,7 +31,7 @@ function readBookHistoryCache(): Record<string, BookReadRecord> {
 
 function writeBookHistoryCache(records: Record<string, BookReadRecord>) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(BOOK_HISTORY_KEY, JSON.stringify(trimRecords(records)));
+  personalStorage.setItem(BOOK_HISTORY_KEY, JSON.stringify(trimRecords(records)));
 }
 
 export function getCachedBookReadRecordsSnapshot(): Record<string, BookReadRecord> {
@@ -42,7 +43,7 @@ export async function getAllBookShelf(): Promise<Record<string, BookShelfItem>> 
   if (isRemoteStorage()) {
     return (await (await fetchWithAuth('/api/books/shelf')).json()) as Record<string, BookShelfItem>;
   }
-  const raw = localStorage.getItem(BOOK_SHELF_KEY);
+  const raw = personalStorage.getItem(BOOK_SHELF_KEY);
   return raw ? (JSON.parse(raw) as Record<string, BookShelfItem>) : {};
 }
 
@@ -58,7 +59,7 @@ export async function saveBookShelf(sourceId: string, bookId: string, item: Book
   }
   const data = await getAllBookShelf();
   data[key] = item;
-  localStorage.setItem(BOOK_SHELF_KEY, JSON.stringify(data));
+  personalStorage.setItem(BOOK_SHELF_KEY, JSON.stringify(data));
 }
 
 export async function deleteBookShelf(sourceId: string, bookId: string): Promise<void> {
@@ -69,7 +70,7 @@ export async function deleteBookShelf(sourceId: string, bookId: string): Promise
   }
   const data = await getAllBookShelf();
   delete data[key];
-  localStorage.setItem(BOOK_SHELF_KEY, JSON.stringify(data));
+  personalStorage.setItem(BOOK_SHELF_KEY, JSON.stringify(data));
 }
 
 export async function getAllBookReadRecords(): Promise<Record<string, BookReadRecord>> {

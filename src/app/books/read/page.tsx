@@ -22,7 +22,8 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { saveBookReadRecord } from '@/lib/book.db.client';
+import { getCachedBookReadRecordsSnapshot, saveBookReadRecord } from '@/lib/book.db.client';
+import { isLocalGuest } from '@/lib/local-guest.client';
 import {
   BookChapter,
   BookChapterContent,
@@ -2222,6 +2223,9 @@ export default function BookReadPage() {
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || '获取阅读信息失败');
+        if (isLocalGuest()) {
+          json.lastRecord = getCachedBookReadRecordsSnapshot()[`${sourceId}+${bookId}`] || null;
+        }
         setManifest(json);
         cacheBookDetail(json.book);
       })

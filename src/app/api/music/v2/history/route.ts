@@ -1,3 +1,5 @@
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { db } from '@/lib/db';
@@ -47,7 +49,7 @@ async function ensureSortOrder(
   return renumbered;
 }
 
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   const username = await getMusicV2Username(request);
   if (!username) return unauthorized();
 
@@ -61,7 +63,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const username = await getMusicV2Username(request);
   if (!username) return unauthorized();
 
@@ -104,7 +106,7 @@ export async function POST(request: NextRequest) {
 
 // 拖拽调整播放队列顺序：客户端给出被移动歌曲及其新的前后邻居，
 // 服务端取邻居 sortOrder 的中值，通常只需改写一条记录。
-export async function PATCH(request: NextRequest) {
+async function handlePATCH(request: NextRequest) {
   const username = await getMusicV2Username(request);
   if (!username) return unauthorized();
 
@@ -147,7 +149,7 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
   const username = await getMusicV2Username(request);
   if (!username) return unauthorized();
 
@@ -164,3 +166,8 @@ export async function DELETE(request: NextRequest) {
     return internalError('删除播放历史失败', (error as Error).message);
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);
+export const PATCH = withLocalGuestPolicy(handlePATCH);
+export const DELETE = withLocalGuestPolicy(handleDELETE);

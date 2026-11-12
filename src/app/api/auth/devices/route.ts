@@ -1,5 +1,7 @@
 /* eslint-disable no-console */
 
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { invalidateDeviceAccessToken, invalidateUserAccessTokens } from '@/lib/access-token-invalidation';
@@ -19,7 +21,7 @@ async function isDeviceManagementDisabled(username: string): Promise<boolean> {
 }
 
 // 获取所有设备
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
 
   if (!authInfo || !authInfo.username) {
@@ -47,7 +49,7 @@ export async function GET(request: NextRequest) {
 }
 
 // 撤销指定设备
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
 
   if (!authInfo || !authInfo.username) {
@@ -78,7 +80,7 @@ export async function DELETE(request: NextRequest) {
 }
 
 // 登出所有设备
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
 
   if (!authInfo || !authInfo.username) {
@@ -112,3 +114,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const DELETE = withLocalGuestPolicy(handleDELETE);
+export const POST = withLocalGuestPolicy(handlePOST);

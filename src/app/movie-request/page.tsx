@@ -6,6 +6,7 @@ import { useEffect,useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { getTMDBImageUrl } from '@/lib/tmdb.client';
+import { isLocalGuest } from '@/lib/local-guest.client';
 import { processImageUrl } from '@/lib/utils';
 
 import PageLayout from '@/components/PageLayout';
@@ -174,6 +175,7 @@ export default function MovieRequestPage() {
   // 加载我的求片列表
   useEffect(() => {
     const fetchMyRequests = async () => {
+      if (isLocalGuest()) { setLoadingMyRequests(false); return; }
       try {
         const response = await fetch('/api/movie-requests?my=true');
         const data = await response.json();

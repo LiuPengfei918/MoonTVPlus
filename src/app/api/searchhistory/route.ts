@@ -1,5 +1,7 @@
 /* eslint-disable no-console */
 
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -14,7 +16,7 @@ const HISTORY_LIMIT = 20;
  * GET /api/searchhistory
  * 返回 string[]
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
  * POST /api/searchhistory
  * body: { keyword: string }
  */
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
@@ -97,7 +99,7 @@ export async function POST(request: NextRequest) {
  * 1. 不带 keyword -> 清空全部搜索历史
  * 2. 带 keyword=<kw> -> 删除单条关键字
  */
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
@@ -130,3 +132,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);
+export const DELETE = withLocalGuestPolicy(handleDELETE);

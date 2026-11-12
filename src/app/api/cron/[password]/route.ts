@@ -330,7 +330,9 @@ async function refreshConfig() {
 
 async function refreshRecordAndFavorites() {
   try {
-    const users = await db.getAllUsers();
+    const config = await getConfig();
+    const guests = new Set(config.UserConfig.LocalGuestUsers || []);
+    const users = (await db.getAllUsers()).filter((username) => !guests.has(username));
     if (process.env.USERNAME && !users.includes(process.env.USERNAME)) {
       users.push(process.env.USERNAME);
     }

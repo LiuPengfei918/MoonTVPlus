@@ -913,6 +913,25 @@ const UserConfig = ({
     });
   };
 
+  const handleLocalGuestToggle = async (targetUsername: string) => {
+    await withLoading(`localGuest_${targetUsername}`, async () => {
+      try {
+        const enabled = !config?.UserConfig.LocalGuestUsers?.includes(targetUsername);
+        const response = await fetch('/api/admin/user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'setLocalGuest', targetUsername, enabled }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || '设置失败');
+        await refreshConfig();
+        showSuccess(enabled ? '已设为本地访客，刷新页面后生效' : '已恢复云同步用户，刷新页面后生效', showAlert);
+      } catch (error) {
+        showError(error instanceof Error ? error.message : '设置失败', showAlert);
+      }
+    });
+  };
+
   const handleSetAdmin = async (uname: string) => {
     await withLoading(`setAdmin_${uname}`, () =>
       handleUserAction('setAdmin', uname)
@@ -1892,6 +1911,9 @@ const UserConfig = ({
                           <td className='px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100'>
                             <div className='flex items-center gap-2'>
                               <span>{user.username}</span>
+                              {config.UserConfig.LocalGuestUsers?.includes(user.username) && (
+                                <span className='text-xs text-blue-600'>本地访客</span>
+                              )}
                               {passwordChangeDisabled && (
                                 <span className='px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300'>
                                   已禁用自行改密
@@ -1989,6 +2011,16 @@ const UserConfig = ({
                                 className={buttonStyles.roundedSecondary}
                               >
                                 查看设备
+                              </button>
+                            )}
+                            {canOperate && user.role === 'user' && (
+                              <button
+                                onClick={() => handleLocalGuestToggle(user.username)}
+                                disabled={isLoading(`localGuest_${user.username}`)}
+                                className={`${buttonStyles.roundedSecondary} disabled:opacity-50`}
+                                title='个人数据保存在当前浏览器；登录和公共配置仍访问服务器'
+                              >
+                                {isLoading(`localGuest_${user.username}`) ? '保存中…' : config.UserConfig.LocalGuestUsers?.includes(user.username) ? '取消本地访客' : '设为本地访客'}
                               </button>
                             )}
                             {/* 修改密码按钮 */}

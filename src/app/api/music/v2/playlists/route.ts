@@ -1,3 +1,5 @@
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -6,7 +8,7 @@ import { badRequest, getMusicV2Username, internalError, unauthorized } from '@/l
 
 export const runtime = 'nodejs';
 
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   const username = await getMusicV2Username(request);
   if (!username) return unauthorized();
 
@@ -18,7 +20,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const username = await getMusicV2Username(request);
   if (!username) return unauthorized();
 
@@ -39,3 +41,6 @@ export async function POST(request: NextRequest) {
     return internalError('创建歌单失败', (error as Error).message);
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);

@@ -144,6 +144,7 @@ export default async function RootLayout({
   let localSettingsSyncMode: 'off' | 'manual' | 'auto' = 'off';
   let userPasswordChangeEnabled = true;
   let userDeviceManagementEnabled = true;
+  let localGuest = false;
   // 特殊源名单：供客户端按入口隔离收藏与播放记录。
   // 入口开关是本机 cookie，与存储模式无关，所以 localstorage 模式也要注入；
   // getConfig() 有模块级缓存，generateMetadata 里已经调过一次，这里不产生额外读取。
@@ -163,7 +164,8 @@ export default async function RootLayout({
     userFeatureAccess = await getUserFeatureAccess(authInfo?.username);
 
     const config = await getConfig();
-    const passwordPolicyConfig = (await db.getAdminConfig()) || config;
+    localGuest = authInfo?.role !== 'admin' && authInfo?.role !== 'owner' && config.UserConfig.LocalGuestUsers?.includes(authInfo?.username || '') === true;
+    const passwordPolicyConfig = localGuest ? config : (await db.getAdminConfig()) || config;
     userPasswordChangeEnabled = !passwordPolicyConfig.UserConfig.PasswordChangeDisabledUsers?.includes(authInfo?.username || '');
     userDeviceManagementEnabled = !passwordPolicyConfig.UserConfig.DeviceManagementDisabledUsers?.includes(authInfo?.username || '');
     siteName = config.SiteConfig.SiteName;
@@ -305,7 +307,8 @@ export default async function RootLayout({
   const runtimeConfig = {
     STORAGE_TYPE: runtimeStorageType,
     DISPLAY_STORAGE_TYPE: displayStorageType,
-    LOCAL_SETTINGS_SYNC_MODE: localSettingsSyncMode,
+    LOCAL_SETTINGS_SYNC_MODE: localGuest ? 'off' : localSettingsSyncMode,
+    LOCAL_GUEST: localGuest,
     DOUBAN_PROXY_TYPE: doubanProxyType,
     DOUBAN_PROXY: doubanProxy,
     DOUBAN_IMAGE_PROXY_TYPE: doubanImageProxyType,
@@ -321,7 +324,7 @@ export default async function RootLayout({
     BANGUMI_API_BASE_URL: bangumiApiBaseUrl,
     BANGUMI_IMAGE_BASE_URL: bangumiImageBaseUrl,
     ENABLE_TV_MODE: process.env.ENABLE_TV_MODE !== 'false',
-    ENABLE_TVBOX_SUBSCRIBE: process.env.ENABLE_TVBOX_SUBSCRIBE === 'true',
+    ENABLE_TVBOX_SUBSCRIBE: !localGuest && process.env.ENABLE_TVBOX_SUBSCRIBE === 'true',
     ENABLE_OFFLINE_DOWNLOAD:
       process.env.NEXT_PUBLIC_ENABLE_OFFLINE_DOWNLOAD === 'true',
     VOICE_CHAT_STRATEGY:
@@ -340,8 +343,8 @@ export default async function RootLayout({
     PROGRESS_THUMB_PRESET_ID: progressThumbPresetId,
     PROGRESS_THUMB_CUSTOM_URL: progressThumbCustomUrl,
     ENABLE_REGISTRATION: enableRegistration,
-    ENABLE_USER_PASSWORD_CHANGE: userPasswordChangeEnabled,
-    ENABLE_USER_DEVICE_MANAGEMENT: userDeviceManagementEnabled,
+    ENABLE_USER_PASSWORD_CHANGE: !localGuest && userPasswordChangeEnabled,
+    ENABLE_USER_DEVICE_MANAGEMENT: !localGuest && userDeviceManagementEnabled,
     REQUIRE_REGISTRATION_INVITE_CODE: requireRegistrationInviteCode,
     LOGIN_REQUIRE_TURNSTILE: loginRequireTurnstile,
     REGISTRATION_REQUIRE_TURNSTILE: registrationRequireTurnstile,
@@ -360,7 +363,7 @@ export default async function RootLayout({
     },
     AI_DEFAULT_MESSAGE_NO_VIDEO: aiDefaultMessageNoVideo,
     AI_DEFAULT_MESSAGE_WITH_VIDEO: aiDefaultMessageWithVideo,
-    ENABLE_MOVIE_REQUEST: enableMovieRequest,
+    ENABLE_MOVIE_REQUEST: !localGuest && enableMovieRequest,
     LIVE_ENABLED: liveEnabled && userFeatureAccess.live,
     WEB_LIVE_ENABLED: webLiveEnabled && userFeatureAccess.web_live,
     ADVANCED_RECOMMENDATION_ENABLED: advancedRecommendationEnabled,

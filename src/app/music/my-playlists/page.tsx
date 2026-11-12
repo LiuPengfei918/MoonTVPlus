@@ -1,5 +1,7 @@
 'use client';
 
+import { localGuestFetch as fetch } from '@/lib/local-guest.client';
+
 import { ArrowLeft, ImageOff, Play, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 

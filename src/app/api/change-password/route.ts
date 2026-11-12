@@ -1,5 +1,7 @@
 /* eslint-disable no-console*/
 
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { invalidateDeviceAccessToken } from '@/lib/access-token-invalidation';
@@ -10,7 +12,7 @@ import { getUserDevices, revokeRefreshToken } from '@/lib/refresh-token';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
   // 不支持 localstorage 模式
@@ -94,3 +96,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withLocalGuestPolicy(handlePOST);

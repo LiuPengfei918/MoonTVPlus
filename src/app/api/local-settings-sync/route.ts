@@ -1,5 +1,7 @@
 /* eslint-disable no-console */
 
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { createHash } from 'crypto';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -43,7 +45,7 @@ function isLoggedIn(request: NextRequest): string | null {
 }
 
 // 探测接口：前端初始化时调用，返回模式与可用性
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   if (searchParams.get('mode') === 'config') {
     const supported = isSyncStorageSupported();
@@ -91,7 +93,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function PUT(request: NextRequest) {
+async function handlePUT(request: NextRequest) {
   if (!isSyncStorageSupported()) {
     return NextResponse.json(
       { error: '当前存储类型不支持云同步' },
@@ -183,3 +185,6 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const PUT = withLocalGuestPolicy(handlePUT);

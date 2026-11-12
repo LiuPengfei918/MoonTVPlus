@@ -1,3 +1,5 @@
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { BookShelfItem } from '@/lib/book.types';
@@ -7,7 +9,7 @@ import { getAuthorizedBooksUsername } from '../_utils';
 
 export const runtime = 'nodejs';
 
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   const username = await getAuthorizedBooksUsername(request);
   if (username instanceof NextResponse) return username;
 
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const username = await getAuthorizedBooksUsername(request);
   if (username instanceof NextResponse) return username;
 
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
   const username = await getAuthorizedBooksUsername(request);
   if (username instanceof NextResponse) return username;
 
@@ -71,3 +73,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);
+export const DELETE = withLocalGuestPolicy(handleDELETE);

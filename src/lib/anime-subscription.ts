@@ -472,6 +472,7 @@ async function sendAnimeUpdateNotifications(
   try {
     const allUsers = await db.getAllUsers();
     for (const username of allUsers) {
+      if (config.UserConfig.LocalGuestUsers?.includes(username)) continue;
       const userInfo = await db.getUserInfoV2(username);
       if (userInfo?.role === 'owner') {
         ownerUsername = username;
@@ -496,7 +497,7 @@ async function sendAnimeUpdateNotifications(
   const usersToNotify: string[] = [ownerUsername];
 
   // 如果创建者不是站长，也通知创建者
-  if (subscription.createdBy && subscription.createdBy !== ownerUsername) {
+  if (subscription.createdBy && subscription.createdBy !== ownerUsername && !config.UserConfig.LocalGuestUsers?.includes(subscription.createdBy)) {
     usersToNotify.push(subscription.createdBy);
   }
 

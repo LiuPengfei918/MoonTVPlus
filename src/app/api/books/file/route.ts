@@ -1,3 +1,5 @@
+import { isLocalGuestUsername } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { db } from '@/lib/db';
@@ -26,8 +28,9 @@ async function resolveFileHref(username: string, payload: FilePayload): Promise<
   const bookId = payload.bookId?.trim();
   if (!bookId) throw new Error('缺少 bookId 或 href');
 
-  const shelfItem = await db.getBookShelf(username, sourceId, bookId);
-  const readRecord = await db.getBookReadRecord(username, sourceId, bookId);
+  const localGuest = await isLocalGuestUsername(username);
+  const shelfItem = localGuest ? null : await db.getBookShelf(username, sourceId, bookId);
+  const readRecord = localGuest ? null : await db.getBookReadRecord(username, sourceId, bookId);
   const directHref = shelfItem?.acquisitionHref || readRecord?.acquisitionHref;
   if (directHref) {
     return { sourceId, href: directHref };

@@ -109,6 +109,43 @@ afterAll(() => {
   process.env = originalEnv;
 });
 
+describe('本地访客策略', () => {
+  it('管理员可以幂等启用和取消本地访客，不改变其他限制', async () => {
+    auth.mockReturnValue({ username: 'admin', role: 'admin' });
+    config.UserConfig.PasswordChangeDisabledUsers = ['bob'];
+    config.UserConfig.LocalGuestUsers = ['bob'];
+    for (const enabled of [true, true, false]) {
+      const response = await manageUser(request({ action: 'setLocalGuest', targetUsername: 'alice', enabled }));
+      expect(response.status).toBe(200);
+      expect(config.UserConfig.LocalGuestUsers).toEqual(enabled ? ['bob', 'alice'] : ['bob']);
+      expect(config.UserConfig.PasswordChangeDisabledUsers).toEqual(['bob']);
+    }
+    expect(storage.saveAdminConfig).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([['missing', true, 404], ['admin2', true, 403], ['alice', 'true', 400]])('拒绝无效目标或参数 %s', async (targetUsername, enabled, status) => {
+    auth.mockReturnValue({ username: 'owner', role: 'owner' });
+    expect((await manageUser(request({ action: 'setLocalGuest', targetUsername, enabled }))).status).toBe(status);
+    expect(storage.saveAdminConfig).not.toHaveBeenCalled();
+  });
+
+  it('普通用户不能设置本地访客', async () => {
+    expect((await manageUser(request({ action: 'setLocalGuest', targetUsername: 'bob', enabled: true }))).status).toBe(401);
+    expect(storage.saveAdminConfig).not.toHaveBeenCalled();
+  });
+
+  it('访客直接调用个人接口不会访问个人数据库，恢复普通用户后正常', async () => {
+    config.UserConfig.LocalGuestUsers = ['alice'];
+    expect((await changePassword(request({ newPassword: 'new-secret' }))).status).toBe(403);
+    expect((await listDevices(request({}))).status).toBe(403);
+    expect(storage.changePasswordV2).not.toHaveBeenCalled();
+    expect(storage.getUserInfoV2).not.toHaveBeenCalled();
+    expect(storage.getAdminConfig).not.toHaveBeenCalled();
+    config.UserConfig.LocalGuestUsers = [];
+    expect((await listDevices(request({}))).status).toBe(200);
+  });
+});
+
 describe('用户自行改密权限', () => {
   it('被禁用用户直接调用接口也返回 403，不写入密码', async () => {
     config.UserConfig.PasswordChangeDisabledUsers = ['alice'];

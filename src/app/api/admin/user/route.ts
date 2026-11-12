@@ -39,6 +39,7 @@ const ACTIONS = [
   'batchUpdateUserGroups',
   'setUserPasswordChange',
   'setUserDeviceManagement',
+  'setLocalGuest',
 ] as const;
 
 export async function POST(request: NextRequest) {
@@ -259,6 +260,7 @@ export async function POST(request: NextRequest) {
 
         // 只更新V2存储
         await db.updateUserInfoV2(targetUsername!, { role: 'admin' });
+        adminConfig.UserConfig.LocalGuestUsers = adminConfig.UserConfig.LocalGuestUsers?.filter((name) => name !== targetUsername);
         break;
       }
       case 'cancelAdmin': {
@@ -356,6 +358,7 @@ export async function POST(request: NextRequest) {
         // 先终止目标用户所有会话，再删除V2存储中的用户
         await terminateUserSessions(targetUsername!, 'user deleted');
         await db.deleteUserV2(targetUsername!);
+        adminConfig.UserConfig.LocalGuestUsers = adminConfig.UserConfig.LocalGuestUsers?.filter((name) => name !== targetUsername);
         adminConfig.UserConfig.PasswordChangeDisabledUsers =
           adminConfig.UserConfig.PasswordChangeDisabledUsers?.filter(
             (name) => name !== targetUsername
@@ -518,6 +521,23 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        break;
+      }
+      case 'setLocalGuest': {
+        const { enabled } = body as { enabled?: boolean };
+        if (typeof enabled !== 'boolean') {
+          return NextResponse.json({ error: '参数格式错误' }, { status: 400 });
+        }
+        if (!targetEntry) {
+          return NextResponse.json({ error: '目标用户不存在' }, { status: 404 });
+        }
+        if (targetEntry.role !== 'user') {
+          return NextResponse.json({ error: '仅普通用户可设为本地访客' }, { status: 403 });
+        }
+        const guests = new Set(adminConfig.UserConfig.LocalGuestUsers || []);
+        if (enabled) guests.add(targetUsername!);
+        else guests.delete(targetUsername!);
+        adminConfig.UserConfig.LocalGuestUsers = Array.from(guests);
         break;
       }
       case 'setUserPasswordChange': {

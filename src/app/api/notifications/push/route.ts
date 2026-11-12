@@ -1,3 +1,5 @@
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -16,7 +18,7 @@ function extractSubscriptionKeys(subscription: any) {
   return { p256dh, auth };
 }
 
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
   if (!authInfo?.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -46,7 +48,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
   if (!authInfo?.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
   if (!authInfo?.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -109,3 +111,7 @@ export async function DELETE(request: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);
+export const DELETE = withLocalGuestPolicy(handleDELETE);

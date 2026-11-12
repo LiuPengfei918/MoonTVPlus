@@ -1,3 +1,5 @@
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -11,7 +13,7 @@ import {
 
 export const runtime = 'nodejs';
 
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
   if (!authInfo?.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -28,7 +30,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
   if (!authInfo?.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -58,3 +60,6 @@ export async function POST(request: NextRequest) {
     deepLink: getTelegramDeepLink(botUsername, `bind_${session.code}`),
   });
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);

@@ -15,6 +15,7 @@
  */
 
 import { getAuthInfoFromBrowserCookie, clearAuthCookie } from './auth';
+import { isLocalGuest, personalStorage } from './local-guest.client';
 import { normalizeEpisodeFilterConfig } from './episode-filter';
 import { MangaReadRecord, MangaShelfItem } from './manga.types';
 import {
@@ -150,6 +151,10 @@ const STORAGE_TYPE = (() => {
     'localstorage';
   return raw;
 })();
+
+function usesRemoteStorage(): boolean {
+  return STORAGE_TYPE !== 'localstorage' && !isLocalGuest();
+}
 
 // ---------------- 搜索历史相关常量 ----------------
 // 搜索历史最大保存条数
@@ -795,20 +800,20 @@ function readLocalPlayRecords(): Record<string, PlayRecord> {
   if (typeof window === 'undefined') return {};
   try {
     const key = getLocalPlayRecordsKey();
-    const raw = localStorage.getItem(key);
+    const raw = personalStorage.getItem(key);
     if (raw !== null) return JSON.parse(raw);
 
     // 只迁移本机已有缓存，不请求云端；新桶存在后（即使为空）不再回填。
     const username = getAuthInfoFromBrowserCookie()?.username;
     const oldCache = username
-      ? localStorage.getItem(`${CACHE_PREFIX}${username}`)
+      ? personalStorage.getItem(`${CACHE_PREFIX}${username}`)
       : null;
     const records: Record<string, PlayRecord> = oldCache
       ? (JSON.parse(oldCache) as UserCacheStore).playRecords?.data || {}
       : !username
-      ? JSON.parse(localStorage.getItem(PLAY_RECORDS_KEY) || '{}')
+      ? JSON.parse(personalStorage.getItem(PLAY_RECORDS_KEY) || '{}')
       : {};
-    localStorage.setItem(key, JSON.stringify(records));
+    personalStorage.setItem(key, JSON.stringify(records));
     return records;
   } catch (err) {
     console.error('读取本地播放记录失败:', err);
@@ -817,7 +822,7 @@ function readLocalPlayRecords(): Record<string, PlayRecord> {
 }
 
 function writeLocalPlayRecords(records: Record<string, PlayRecord>): void {
-  localStorage.setItem(getLocalPlayRecordsKey(), JSON.stringify(records));
+  personalStorage.setItem(getLocalPlayRecordsKey(), JSON.stringify(records));
   window.dispatchEvent(new CustomEvent('playRecordsUpdated', { detail: records }));
 }
 
@@ -852,7 +857,7 @@ export function getCachedMangaReadRecordsSnapshot(): Record<
     return {};
   }
 
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     const cachedRecords = cacheManager.getCachedMangaReadRecords();
     if (cachedRecords) {
       return cachedRecords;
@@ -862,7 +867,7 @@ export function getCachedMangaReadRecordsSnapshot(): Record<
       const username = getAuthInfoFromBrowserCookie()?.username;
       if (!username) return {};
 
-      const raw = localStorage.getItem(`${CACHE_PREFIX}${username}`);
+      const raw = personalStorage.getItem(`${CACHE_PREFIX}${username}`);
       if (!raw) return {};
 
       const userCache = JSON.parse(raw) as UserCacheStore;
@@ -874,7 +879,7 @@ export function getCachedMangaReadRecordsSnapshot(): Record<
   }
 
   try {
-    const raw = localStorage.getItem(MANGA_HISTORY_KEY);
+    const raw = personalStorage.getItem(MANGA_HISTORY_KEY);
     if (!raw) return {};
     return JSON.parse(raw) as Record<string, MangaReadRecord>;
   } catch (err) {
@@ -934,7 +939,7 @@ export async function migratePlayRecord(
 function getSpecialSearchHistoryLocal(): string[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(SEARCH_HISTORY_SPECIAL_KEY);
+    const raw = personalStorage.getItem(SEARCH_HISTORY_SPECIAL_KEY);
     if (!raw) return [];
     const arr = JSON.parse(raw) as string[];
     return Array.isArray(arr) ? Array.from(new Set(arr)) : [];
@@ -948,7 +953,7 @@ function getSpecialSearchHistoryLocal(): string[] {
 function setSpecialSearchHistoryLocal(history: string[]): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(SEARCH_HISTORY_SPECIAL_KEY, JSON.stringify(history));
+    personalStorage.setItem(SEARCH_HISTORY_SPECIAL_KEY, JSON.stringify(history));
   } catch (err) {
     console.error('保存特殊源搜索历史失败:', err);
   }
@@ -973,7 +978,7 @@ export async function getSearchHistory(): Promise<string[]> {
   }
 
   // 数据库存储模式：使用混合缓存策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 优先从缓存获取数据
     const cachedData = cacheManager.getCachedSearchHistory();
 
@@ -1018,7 +1023,7 @@ export async function getSearchHistory(): Promise<string[]> {
 
   // localStorage 模式
   try {
-    const raw = localStorage.getItem(SEARCH_HISTORY_KEY);
+    const raw = personalStorage.getItem(SEARCH_HISTORY_KEY);
     if (!raw) return [];
     const arr = JSON.parse(raw) as string[];
     // 仅返回字符串数组，并去重
@@ -1051,7 +1056,7 @@ export async function addSearchHistory(keyword: string): Promise<void> {
   }
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     const cachedHistory = cacheManager.getCachedSearchHistory() || [];
     const newHistory = [trimmed, ...cachedHistory.filter((k) => k !== trimmed)];
@@ -1093,7 +1098,7 @@ export async function addSearchHistory(keyword: string): Promise<void> {
     if (newHistory.length > SEARCH_HISTORY_LIMIT) {
       newHistory.length = SEARCH_HISTORY_LIMIT;
     }
-    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(newHistory));
+    personalStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(newHistory));
     window.dispatchEvent(
       new CustomEvent('searchHistoryUpdated', {
         detail: newHistory,
@@ -1117,7 +1122,7 @@ export async function clearSearchHistory(): Promise<void> {
   }
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     cacheManager.cacheSearchHistory([]);
 
@@ -1141,7 +1146,7 @@ export async function clearSearchHistory(): Promise<void> {
 
   // localStorage 模式
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(SEARCH_HISTORY_KEY);
+  personalStorage.removeItem(SEARCH_HISTORY_KEY);
   window.dispatchEvent(
     new CustomEvent('searchHistoryUpdated', {
       detail: [],
@@ -1165,7 +1170,7 @@ export async function deleteSearchHistory(keyword: string): Promise<void> {
   }
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     const cachedHistory = cacheManager.getCachedSearchHistory() || [];
     const newHistory = cachedHistory.filter((k) => k !== trimmed);
@@ -1198,7 +1203,7 @@ export async function deleteSearchHistory(keyword: string): Promise<void> {
   try {
     const history = await getSearchHistory();
     const newHistory = history.filter((k) => k !== trimmed);
-    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(newHistory));
+    personalStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(newHistory));
     window.dispatchEvent(
       new CustomEvent('searchHistoryUpdated', {
         detail: newHistory,
@@ -1230,7 +1235,7 @@ async function getAllFavoritesRaw(): Promise<Record<string, Favorite>> {
   }
 
   // 数据库存储模式：使用混合缓存策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 优先从缓存获取数据
     const cachedData = cacheManager.getCachedFavorites();
 
@@ -1297,7 +1302,7 @@ async function getAllFavoritesRaw(): Promise<Record<string, Favorite>> {
 
   // localStorage 模式
   try {
-    const raw = localStorage.getItem(FAVORITES_KEY);
+    const raw = personalStorage.getItem(FAVORITES_KEY);
     if (!raw) return {};
     return JSON.parse(raw) as Record<string, Favorite>;
   } catch (err) {
@@ -1326,7 +1331,7 @@ export async function saveFavorite(
   const key = generateStorageKey(source, id);
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     const cachedFavorites = cacheManager.getCachedFavorites() || {};
     cachedFavorites[key] = favorite;
@@ -1365,7 +1370,7 @@ export async function saveFavorite(
   try {
     const allFavorites = await getAllFavoritesRaw();
     allFavorites[key] = favorite;
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(allFavorites));
+    personalStorage.setItem(FAVORITES_KEY, JSON.stringify(allFavorites));
     window.dispatchEvent(
       new CustomEvent('favoritesUpdated', {
         detail: allFavorites,
@@ -1389,7 +1394,7 @@ export async function deleteFavorite(
   const key = generateStorageKey(source, id);
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     const cachedFavorites = cacheManager.getCachedFavorites() || {};
     delete cachedFavorites[key];
@@ -1424,7 +1429,7 @@ export async function deleteFavorite(
   try {
     const allFavorites = await getAllFavoritesRaw();
     delete allFavorites[key];
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(allFavorites));
+    personalStorage.setItem(FAVORITES_KEY, JSON.stringify(allFavorites));
     window.dispatchEvent(
       new CustomEvent('favoritesUpdated', {
         detail: allFavorites,
@@ -1449,7 +1454,7 @@ export async function isFavorited(
 
   // 数据库存储模式：直接从缓存读取，不触发后台刷新
   // 后台刷新由 getAllFavorites() 统一管理，避免重复请求
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     const cachedFavorites = cacheManager.getCachedFavorites();
 
     if (cachedFavorites) {
@@ -1473,7 +1478,7 @@ export async function isFavorited(
  * 普通入口只清普通源，/under 只清特殊源，另一侧的数据保留（与读路径隔离口径一致）。
  */
 export async function clearAllPlayRecords(): Promise<void> {
-  if (STORAGE_TYPE === 'localstorage' && typeof window === 'undefined') return;
+  if (!usesRemoteStorage() && typeof window === 'undefined') return;
 
   const raw = await getAllPlayRecordsRaw();
   const visibleKeys = Object.keys(filterRecordsBySpecialSourceContext(raw));
@@ -1490,7 +1495,7 @@ export async function deleteFavorites(keys: string[]): Promise<void> {
   if (uniqueKeys.length === 0) return;
 
   // 数据库存储模式：一次性乐观更新 + 一次 API 请求
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     const cachedFavorites = cacheManager.getCachedFavorites() || {};
     uniqueKeys.forEach((key) => {
       delete cachedFavorites[key];
@@ -1528,7 +1533,7 @@ export async function deleteFavorites(keys: string[]): Promise<void> {
     uniqueKeys.forEach((key) => {
       delete allFavorites[key];
     });
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(allFavorites));
+    personalStorage.setItem(FAVORITES_KEY, JSON.stringify(allFavorites));
     window.dispatchEvent(
       new CustomEvent('favoritesUpdated', {
         detail: allFavorites,
@@ -1546,7 +1551,7 @@ export async function deleteFavorites(keys: string[]): Promise<void> {
  * 普通入口只清普通源，/under 只清特殊源，另一侧的数据保留。
  */
 export async function clearAllFavorites(): Promise<void> {
-  if (STORAGE_TYPE === 'localstorage' && typeof window === 'undefined') return;
+  if (!usesRemoteStorage() && typeof window === 'undefined') return;
 
   const raw = await getAllFavoritesRaw();
   const visibleKeys = Object.keys(filterRecordsBySpecialSourceContext(raw));
@@ -1560,7 +1565,7 @@ export async function getAllMangaShelf(): Promise<
 > {
   if (typeof window === 'undefined') return {};
 
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     const cachedData = cacheManager.getCachedMangaShelf();
     if (cachedData) {
       fetchFromApi<Record<string, MangaShelfItem>>('/api/manga/shelf')
@@ -1592,7 +1597,7 @@ export async function getAllMangaShelf(): Promise<
   }
 
   try {
-    const raw = localStorage.getItem(MANGA_SHELF_KEY);
+    const raw = personalStorage.getItem(MANGA_SHELF_KEY);
     if (!raw) return {};
     return JSON.parse(raw) as Record<string, MangaShelfItem>;
   } catch (err) {
@@ -1609,7 +1614,7 @@ export async function saveMangaShelf(
 ): Promise<void> {
   const key = generateStorageKey(sourceId, mangaId);
 
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     const cached = cacheManager.getCachedMangaShelf() || {};
     cached[key] = item;
     cacheManager.cacheMangaShelf(cached);
@@ -1632,7 +1637,7 @@ export async function saveMangaShelf(
 
   const allItems = await getAllMangaShelf();
   allItems[key] = item;
-  localStorage.setItem(MANGA_SHELF_KEY, JSON.stringify(allItems));
+  personalStorage.setItem(MANGA_SHELF_KEY, JSON.stringify(allItems));
   window.dispatchEvent(
     new CustomEvent('mangaShelfUpdated', { detail: allItems })
   );
@@ -1644,7 +1649,7 @@ export async function deleteMangaShelf(
 ): Promise<void> {
   const key = generateStorageKey(sourceId, mangaId);
 
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     const cached = cacheManager.getCachedMangaShelf() || {};
     delete cached[key];
     cacheManager.cacheMangaShelf(cached);
@@ -1665,14 +1670,14 @@ export async function deleteMangaShelf(
 
   const allItems = await getAllMangaShelf();
   delete allItems[key];
-  localStorage.setItem(MANGA_SHELF_KEY, JSON.stringify(allItems));
+  personalStorage.setItem(MANGA_SHELF_KEY, JSON.stringify(allItems));
   window.dispatchEvent(
     new CustomEvent('mangaShelfUpdated', { detail: allItems })
   );
 }
 
 export async function clearAllMangaShelf(): Promise<void> {
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     cacheManager.cacheMangaShelf({});
     window.dispatchEvent(new CustomEvent('mangaShelfUpdated', { detail: {} }));
     try {
@@ -1684,7 +1689,7 @@ export async function clearAllMangaShelf(): Promise<void> {
     return;
   }
 
-  localStorage.removeItem(MANGA_SHELF_KEY);
+  personalStorage.removeItem(MANGA_SHELF_KEY);
   window.dispatchEvent(new CustomEvent('mangaShelfUpdated', { detail: {} }));
 }
 
@@ -1706,7 +1711,7 @@ export async function getAllMangaReadRecords(): Promise<
 > {
   if (typeof window === 'undefined') return {};
 
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     const cachedData = cacheManager.getCachedMangaReadRecords();
     if (cachedData) {
       fetchFromApi<Record<string, MangaReadRecord>>('/api/manga/history')
@@ -1738,7 +1743,7 @@ export async function getAllMangaReadRecords(): Promise<
   }
 
   try {
-    const raw = localStorage.getItem(MANGA_HISTORY_KEY);
+    const raw = personalStorage.getItem(MANGA_HISTORY_KEY);
     if (!raw) return {};
     return JSON.parse(raw) as Record<string, MangaReadRecord>;
   } catch (err) {
@@ -1755,7 +1760,7 @@ export async function saveMangaReadRecord(
 ): Promise<void> {
   const key = generateStorageKey(sourceId, mangaId);
 
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     const cached = cacheManager.getCachedMangaReadRecords() || {};
     cached[key] = record;
     const trimmedRecords = trimMangaReadRecords(cached);
@@ -1780,7 +1785,7 @@ export async function saveMangaReadRecord(
   const allRecords = await getAllMangaReadRecords();
   allRecords[key] = record;
   const trimmedRecords = trimMangaReadRecords(allRecords);
-  localStorage.setItem(MANGA_HISTORY_KEY, JSON.stringify(trimmedRecords));
+  personalStorage.setItem(MANGA_HISTORY_KEY, JSON.stringify(trimmedRecords));
   window.dispatchEvent(
     new CustomEvent('mangaHistoryUpdated', { detail: trimmedRecords })
   );
@@ -1792,7 +1797,7 @@ export async function deleteMangaReadRecord(
 ): Promise<void> {
   const key = generateStorageKey(sourceId, mangaId);
 
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     const cached = cacheManager.getCachedMangaReadRecords() || {};
     delete cached[key];
     cacheManager.cacheMangaReadRecords(cached);
@@ -1813,14 +1818,14 @@ export async function deleteMangaReadRecord(
 
   const allRecords = await getAllMangaReadRecords();
   delete allRecords[key];
-  localStorage.setItem(MANGA_HISTORY_KEY, JSON.stringify(allRecords));
+  personalStorage.setItem(MANGA_HISTORY_KEY, JSON.stringify(allRecords));
   window.dispatchEvent(
     new CustomEvent('mangaHistoryUpdated', { detail: allRecords })
   );
 }
 
 export async function clearAllMangaReadRecords(): Promise<void> {
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     cacheManager.cacheMangaReadRecords({});
     window.dispatchEvent(
       new CustomEvent('mangaHistoryUpdated', { detail: {} })
@@ -1834,7 +1839,7 @@ export async function clearAllMangaReadRecords(): Promise<void> {
     return;
   }
 
-  localStorage.removeItem(MANGA_HISTORY_KEY);
+  personalStorage.removeItem(MANGA_HISTORY_KEY);
   window.dispatchEvent(new CustomEvent('mangaHistoryUpdated', { detail: {} }));
 }
 
@@ -1845,7 +1850,7 @@ export async function clearAllMangaReadRecords(): Promise<void> {
  * 用于用户登出时清理缓存
  */
 export function clearUserCache(): void {
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     cacheManager.clearUserCache();
   }
 }
@@ -1855,7 +1860,7 @@ export function clearUserCache(): void {
  * 强制从服务器重新获取数据并更新缓存
  */
 export async function refreshAllCache(): Promise<void> {
-  if (STORAGE_TYPE === 'localstorage') return;
+  if (!usesRemoteStorage()) return;
 
   try {
     // 使用 Promise 缓存防止并发重复刷新
@@ -1939,7 +1944,7 @@ export function getCacheStatus(): {
   hasMangaHistory: boolean;
   username: string | null;
 } {
-  if (STORAGE_TYPE === 'localstorage') {
+  if (!usesRemoteStorage()) {
     return {
       hasPlayRecords: false,
       hasFavorites: false,
@@ -2037,7 +2042,7 @@ export function subscribeToDataUpdates<T>(
  * 适合在应用启动时调用，提升后续访问速度
  */
 export async function preloadUserData(): Promise<void> {
-  if (STORAGE_TYPE === 'localstorage') return;
+  if (!usesRemoteStorage()) return;
 
   // 检查是否已有有效缓存，避免重复请求
   const status = getCacheStatus();
@@ -2074,7 +2079,7 @@ export async function getSkipConfig(
   const key = generateStorageKey(source, id);
 
   // 数据库存储模式：使用混合缓存策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 优先从缓存获取数据
     const cachedData = cacheManager.getCachedSkipConfigs();
 
@@ -2116,7 +2121,7 @@ export async function getSkipConfig(
 
   // localStorage 模式
   try {
-    const raw = localStorage.getItem('moontv_skip_configs');
+    const raw = personalStorage.getItem('moontv_skip_configs');
     if (!raw) return null;
     const configs = JSON.parse(raw) as Record<string, SkipConfig>;
     return configs[key] || null;
@@ -2139,7 +2144,7 @@ export async function saveSkipConfig(
   const key = generateStorageKey(source, id);
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     const cachedConfigs = cacheManager.getCachedSkipConfigs() || {};
     cachedConfigs[key] = config;
@@ -2175,10 +2180,10 @@ export async function saveSkipConfig(
   }
 
   try {
-    const raw = localStorage.getItem('moontv_skip_configs');
+    const raw = personalStorage.getItem('moontv_skip_configs');
     const configs = raw ? (JSON.parse(raw) as Record<string, SkipConfig>) : {};
     configs[key] = config;
-    localStorage.setItem('moontv_skip_configs', JSON.stringify(configs));
+    personalStorage.setItem('moontv_skip_configs', JSON.stringify(configs));
     window.dispatchEvent(
       new CustomEvent('skipConfigsUpdated', {
         detail: configs,
@@ -2202,7 +2207,7 @@ export async function getAllSkipConfigs(): Promise<Record<string, SkipConfig>> {
   }
 
   // 数据库存储模式：使用混合缓存策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 优先从缓存获取数据
     const cachedData = cacheManager.getCachedSkipConfigs();
 
@@ -2245,7 +2250,7 @@ export async function getAllSkipConfigs(): Promise<Record<string, SkipConfig>> {
 
   // localStorage 模式
   try {
-    const raw = localStorage.getItem('moontv_skip_configs');
+    const raw = personalStorage.getItem('moontv_skip_configs');
     if (!raw) return {};
     return JSON.parse(raw) as Record<string, SkipConfig>;
   } catch (err) {
@@ -2266,7 +2271,7 @@ export async function deleteSkipConfig(
   const key = generateStorageKey(source, id);
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     const cachedConfigs = cacheManager.getCachedSkipConfigs() || {};
     delete cachedConfigs[key];
@@ -2298,11 +2303,11 @@ export async function deleteSkipConfig(
   }
 
   try {
-    const raw = localStorage.getItem('moontv_skip_configs');
+    const raw = personalStorage.getItem('moontv_skip_configs');
     if (raw) {
       const configs = JSON.parse(raw) as Record<string, SkipConfig>;
       delete configs[key];
-      localStorage.setItem('moontv_skip_configs', JSON.stringify(configs));
+      personalStorage.setItem('moontv_skip_configs', JSON.stringify(configs));
       window.dispatchEvent(
         new CustomEvent('skipConfigsUpdated', {
           detail: configs,
@@ -2329,7 +2334,7 @@ export async function getDanmakuFilterConfig(): Promise<DanmakuFilterConfig | nu
   }
 
   // 数据库存储模式：使用混合缓存策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 优先从缓存获取数据
     const cachedData = cacheManager.getCachedDanmakuFilterConfig();
 
@@ -2370,7 +2375,7 @@ export async function getDanmakuFilterConfig(): Promise<DanmakuFilterConfig | nu
 
   // localStorage 模式
   try {
-    const raw = localStorage.getItem('moontv_danmaku_filter_config');
+    const raw = personalStorage.getItem('moontv_danmaku_filter_config');
     if (!raw) return null;
     return JSON.parse(raw) as DanmakuFilterConfig;
   } catch (err) {
@@ -2388,7 +2393,7 @@ export async function saveDanmakuFilterConfig(
   config: DanmakuFilterConfig
 ): Promise<void> {
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     cacheManager.cacheDanmakuFilterConfig(config);
 
@@ -2422,7 +2427,7 @@ export async function saveDanmakuFilterConfig(
   }
 
   try {
-    localStorage.setItem(
+    personalStorage.setItem(
       'moontv_danmaku_filter_config',
       JSON.stringify(config)
     );
@@ -2453,7 +2458,7 @@ export async function getAllMusicPlayRecords(): Promise<
   }
 
   // 数据库存储模式：使用混合缓存策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 优先从缓存获取数据
     const cachedData = cacheManager.getCachedMusicPlayRecords();
 
@@ -2496,7 +2501,7 @@ export async function getAllMusicPlayRecords(): Promise<
 
   // localstorage 模式
   try {
-    const raw = localStorage.getItem(MUSIC_PLAY_RECORDS_KEY);
+    const raw = personalStorage.getItem(MUSIC_PLAY_RECORDS_KEY);
     if (!raw) return {};
     return JSON.parse(raw) as Record<string, MusicPlayRecord>;
   } catch (err) {
@@ -2518,7 +2523,7 @@ export async function saveMusicPlayRecord(
   const key = generateStorageKey(platform, id);
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     const cachedRecords = cacheManager.getCachedMusicPlayRecords() || {};
     cachedRecords[key] = record;
@@ -2557,7 +2562,7 @@ export async function saveMusicPlayRecord(
   try {
     const allRecords = await getAllMusicPlayRecords();
     allRecords[key] = record;
-    localStorage.setItem(MUSIC_PLAY_RECORDS_KEY, JSON.stringify(allRecords));
+    personalStorage.setItem(MUSIC_PLAY_RECORDS_KEY, JSON.stringify(allRecords));
     window.dispatchEvent(
       new CustomEvent('musicPlayRecordsUpdated', {
         detail: allRecords,
@@ -2581,7 +2586,7 @@ export async function deleteMusicPlayRecord(
   const key = generateStorageKey(platform, id);
 
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     const cachedRecords = cacheManager.getCachedMusicPlayRecords() || {};
     delete cachedRecords[key];
@@ -2619,7 +2624,7 @@ export async function deleteMusicPlayRecord(
   try {
     const allRecords = await getAllMusicPlayRecords();
     delete allRecords[key];
-    localStorage.setItem(MUSIC_PLAY_RECORDS_KEY, JSON.stringify(allRecords));
+    personalStorage.setItem(MUSIC_PLAY_RECORDS_KEY, JSON.stringify(allRecords));
     window.dispatchEvent(
       new CustomEvent('musicPlayRecordsUpdated', {
         detail: allRecords,
@@ -2638,7 +2643,7 @@ export async function deleteMusicPlayRecord(
  */
 export async function clearAllMusicPlayRecords(): Promise<void> {
   // 数据库存储模式：乐观更新策略（包括 redis 和 upstash）
-  if (STORAGE_TYPE !== 'localstorage') {
+  if (usesRemoteStorage()) {
     // 立即更新缓存
     cacheManager.cacheMusicPlayRecords({});
 
@@ -2665,7 +2670,7 @@ export async function clearAllMusicPlayRecords(): Promise<void> {
 
   // localStorage 模式
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(MUSIC_PLAY_RECORDS_KEY);
+  personalStorage.removeItem(MUSIC_PLAY_RECORDS_KEY);
   window.dispatchEvent(
     new CustomEvent('musicPlayRecordsUpdated', {
       detail: {},
@@ -2684,7 +2689,7 @@ export async function getEpisodeFilterConfig(): Promise<EpisodeFilterConfig | nu
   }
 
   try {
-    const raw = localStorage.getItem('moontv_episode_filter_config');
+    const raw = personalStorage.getItem('moontv_episode_filter_config');
     if (!raw) return null;
     return normalizeEpisodeFilterConfig(JSON.parse(raw) as EpisodeFilterConfig);
   } catch (err) {
@@ -2706,7 +2711,7 @@ export async function saveEpisodeFilterConfig(
 
   try {
     const normalizedConfig = normalizeEpisodeFilterConfig(config);
-    localStorage.setItem(
+    personalStorage.setItem(
       'moontv_episode_filter_config',
       JSON.stringify(normalizedConfig)
     );

@@ -1,3 +1,5 @@
+import { isLocalGuestUsername, withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -6,7 +8,7 @@ import { getStorage } from '@/lib/db';
 export const runtime = 'nodejs';
 
 // GET: 获取单个求片详情
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -34,7 +36,7 @@ export async function GET(
 }
 
 // PATCH: 更新求片状态（标记已上架）
-export async function PATCH(
+async function handlePATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -80,6 +82,7 @@ export async function PATCH(
 
       // 给所有求片用户发送通知
       for (const username of movieRequest.requestedBy) {
+        if (await isLocalGuestUsername(username)) continue;
         await storage.addNotification(username, {
           id: `req_fulfilled_${params.id}_${Date.now()}`,
           type: 'request_fulfilled',
@@ -112,7 +115,7 @@ export async function PATCH(
 }
 
 // DELETE: 删除求片
-export async function DELETE(
+async function handleDELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -159,3 +162,7 @@ export async function DELETE(
     );
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const PATCH = withLocalGuestPolicy(handlePATCH);
+export const DELETE = withLocalGuestPolicy(handleDELETE);

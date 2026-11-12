@@ -1,3 +1,5 @@
+import { isLocalGuestUsername } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { BookAcquisitionLink } from '@/lib/book.types';
@@ -30,8 +32,9 @@ async function resolveDetail(username: string, payload: DetailPayload) {
     return NextResponse.json({ error: '缺少 bookId' }, { status: 400 });
   }
 
-  const shelfItem = await db.getBookShelf(username, sourceId, bookId);
-  const readRecord = await db.getBookReadRecord(username, sourceId, bookId);
+  const localGuest = await isLocalGuestUsername(username);
+  const shelfItem = localGuest ? null : await db.getBookShelf(username, sourceId, bookId);
+  const readRecord = localGuest ? null : await db.getBookReadRecord(username, sourceId, bookId);
   const href = payload.href?.trim() || shelfItem?.detailHref || readRecord?.detailHref || '';
   const acquisitionLinks = (payload.acquisitionLinks && payload.acquisitionLinks.length > 0)
     ? payload.acquisitionLinks

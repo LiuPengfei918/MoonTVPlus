@@ -39,6 +39,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
+import { isLocalGuest } from '@/lib/local-guest.client';
 import { clearAllDanmakuCache, getDanmakuCacheStats } from '@/lib/danmaku/api';
 import { LIVE_AUTO_SPEED_TEST_KEY, SAVE_LIVE_PLAY_RECORDS_KEY } from '@/lib/db.client';
 import {
@@ -404,6 +405,7 @@ export const UserMenu: React.FC = () => {
 
   // 加载未读通知数量
   const loadUnreadCount = async () => {
+    if (isLocalGuest()) return;
     try {
       const response = await fetch('/api/notifications');
       if (response.ok) {
@@ -438,7 +440,7 @@ export const UserMenu: React.FC = () => {
 
   // 首次加载时检查未读通知数量（使用全局标记避免多个实例重复请求）
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || isLocalGuest()) return;
 
     // 检查是否已经有其他实例在加载
     const globalWindow = window as any;
@@ -618,8 +620,8 @@ export const UserMenu: React.FC = () => {
       setAuthInfo(auth);
 
       const runtimeConfig = (window as any).RUNTIME_CONFIG || {};
-      const type = runtimeConfig.STORAGE_TYPE || 'localstorage';
-      const displayType = runtimeConfig.DISPLAY_STORAGE_TYPE || type;
+      const type = isLocalGuest() ? 'localstorage' : runtimeConfig.STORAGE_TYPE || 'localstorage';
+      const displayType = isLocalGuest() ? '本地访客' : runtimeConfig.DISPLAY_STORAGE_TYPE || type;
       setStorageType(type);
       setDisplayStorageType(displayType);
     }
@@ -3048,7 +3050,7 @@ export const UserMenu: React.FC = () => {
         {/* 菜单项 */}
         <div className='py-1'>
           {/* 通知按钮 */}
-          <button
+          {!isLocalGuest() && <button
             onClick={() => {
               setIsOpen(false);
               setIsNotificationPanelOpen(true);
@@ -3062,7 +3064,7 @@ export const UserMenu: React.FC = () => {
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
-          </button>
+          </button>}
 
           {/* 我的收藏按钮 */}
           <button
@@ -6279,6 +6281,7 @@ export const UserMenu: React.FC = () => {
       {isOpen && mounted && createPortal(menuPanel, document.body)}
 
       <PersonalCenterPanel
+        showNotificationSettings={!isLocalGuest()}
         isOpen={isProfileCenterOpen}
         mounted={mounted}
         onClose={() => setIsProfileCenterOpen(false)}

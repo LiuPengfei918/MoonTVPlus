@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
+import { localGuestFetch as fetch } from '@/lib/local-guest.client';
+
 import { useEffect, useState } from 'react';
 
 interface Song {

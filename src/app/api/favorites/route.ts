@@ -1,5 +1,7 @@
 /* eslint-disable no-console */
 
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -15,7 +17,7 @@ export const runtime = 'nodejs';
  * 1. 不带 query，返回全部收藏列表（Record<string, Favorite>）。
  * 2. 带 key=source+id，返回单条收藏（Favorite | null）。
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
@@ -80,7 +82,7 @@ export async function GET(request: NextRequest) {
  * POST /api/favorites
  * body: { key: string; favorite: Favorite }
  */
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
@@ -148,7 +150,7 @@ export async function POST(request: NextRequest) {
  * 1. 不带 query -> 清空全部收藏
  * 2. 带 key=source+id -> 删除单条收藏
  */
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
   try {
     // 从 cookie 获取用户信息
     const authInfo = getAuthInfoFromCookie(request);
@@ -234,3 +236,7 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);
+export const DELETE = withLocalGuestPolicy(handleDELETE);

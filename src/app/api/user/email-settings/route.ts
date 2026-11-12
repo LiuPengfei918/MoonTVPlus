@@ -1,3 +1,5 @@
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -8,7 +10,7 @@ export const runtime = 'nodejs';
 /**
  * GET - 获取用户通知设置
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
   if (!authInfo || !authInfo.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest) {
 /**
  * POST - 保存用户通知设置
  */
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const authInfo = getAuthInfoFromCookie(request);
   if (!authInfo || !authInfo.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -90,3 +92,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);

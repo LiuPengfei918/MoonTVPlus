@@ -1,3 +1,5 @@
+import { isLocalGuestUsername } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { BookAcquisitionLink } from '@/lib/book.types';
@@ -32,8 +34,9 @@ async function resolveManifest(username: string, payload: ManifestPayload) {
       return NextResponse.json({ error: '缺少 sourceId' }, { status: 400 });
     }
 
-    const existingRecord = bookId ? await db.getBookReadRecord(username, sourceId, bookId) : null;
-    const shelfItem = bookId ? await db.getBookShelf(username, sourceId, bookId) : null;
+    const localGuest = await isLocalGuestUsername(username);
+    const existingRecord = bookId && !localGuest ? await db.getBookReadRecord(username, sourceId, bookId) : null;
+    const shelfItem = bookId && !localGuest ? await db.getBookShelf(username, sourceId, bookId) : null;
     const resolvedHref = href || existingRecord?.detailHref || shelfItem?.detailHref || '';
     const resolvedAcquisitionHref = acquisitionHref || existingRecord?.acquisitionHref || shelfItem?.acquisitionHref || '';
     const resolvedFormat = format || existingRecord?.format || shelfItem?.format || 'epub';
@@ -65,7 +68,7 @@ async function resolveManifest(username: string, payload: ManifestPayload) {
           format: resolvedFormat === 'chapters' ? 'chapters' : resolvedFormat === 'pdf' ? 'pdf' : 'epub',
           href: resolvedAcquisitionHref || '',
         };
-    const lastRecord = await db.getBookReadRecord(username, sourceId, detail.id);
+    const lastRecord = localGuest ? null : await db.getBookReadRecord(username, sourceId, detail.id);
 
     return NextResponse.json({
       book: detail,

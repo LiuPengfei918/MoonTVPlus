@@ -1,3 +1,5 @@
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { db } from '@/lib/db';
@@ -6,7 +8,7 @@ import { badRequest, getMusicV2Username, internalError, unauthorized } from '@/l
 
 export const runtime = 'nodejs';
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ playlistId: string }> }) {
+async function handleGET(request: NextRequest, { params }: { params: Promise<{ playlistId: string }> }) {
   const username = await getMusicV2Username(request);
   if (!username) return unauthorized();
 
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ playlistId: string }> }) {
+async function handlePOST(request: NextRequest, { params }: { params: Promise<{ playlistId: string }> }) {
   const username = await getMusicV2Username(request);
   if (!username) return unauthorized();
 
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ playlistId: string }> }) {
+async function handleDELETE(request: NextRequest, { params }: { params: Promise<{ playlistId: string }> }) {
   const username = await getMusicV2Username(request);
   if (!username) return unauthorized();
 
@@ -73,3 +75,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return internalError('删除歌曲失败', (error as Error).message);
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);
+export const POST = withLocalGuestPolicy(handlePOST);
+export const DELETE = withLocalGuestPolicy(handleDELETE);

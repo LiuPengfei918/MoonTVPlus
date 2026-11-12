@@ -1,3 +1,5 @@
+import { withLocalGuestPolicy } from '@/lib/local-guest.server';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
@@ -10,7 +12,7 @@ export const runtime = 'nodejs';
  * 获取用户的TVBox订阅token
  * 如果用户没有token，自动生成一个
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     // 验证用户登录
     const authInfo = getAuthInfoFromCookie(request);
@@ -45,3 +47,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = withLocalGuestPolicy(handleGET);

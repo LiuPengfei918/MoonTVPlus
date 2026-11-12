@@ -14,6 +14,7 @@ interface PersonalCenterPanelProps {
   roleBadgeClassName: string;
   showDeviceManagement: boolean;
   showChangePassword: boolean;
+  showNotificationSettings?: boolean;
   onOpenEmailSettings: () => void;
   onOpenDeviceManagement: () => void;
   onOpenChangePassword: () => void;
@@ -30,6 +31,7 @@ export function PersonalCenterPanel({
   roleBadgeClassName,
   showDeviceManagement,
   showChangePassword,
+  showNotificationSettings = true,
   onOpenEmailSettings,
   onOpenDeviceManagement,
   onOpenChangePassword,
@@ -83,7 +85,10 @@ export function PersonalCenterPanel({
           </div>
 
           <div className='space-y-3'>
-            <button
+            {!showNotificationSettings && !showDeviceManagement && !showChangePassword && (
+              <p className='text-sm text-gray-500 dark:text-gray-400'>本地访客的播放记录、收藏等数据保存在当前浏览器。</p>
+            )}
+            {showNotificationSettings && <button
               onClick={onOpenEmailSettings}
               className='flex w-full items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 text-left transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-750'
             >
@@ -98,7 +103,7 @@ export function PersonalCenterPanel({
                   管理邮件通知和浏览器系统通知
                 </div>
               </div>
-            </button>
+            </button>}
 
             {showDeviceManagement && (
               <button
