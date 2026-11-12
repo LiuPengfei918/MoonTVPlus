@@ -5378,21 +5378,33 @@ function PlayPageClient() {
     };
 
     const filterSourcesForCurrentVideo = (items: SearchResult[]): SearchResult[] => {
-      return items.filter(
-        (result: SearchResult) =>
-          normalizeTitle(result.title).toLowerCase() ===
-          normalizeTitle(videoTitleRef.current).toLowerCase() &&
-          (videoYearRef.current
-            ? result.year.toLowerCase() === videoYearRef.current.toLowerCase() ||
-              !result.year ||
-              result.year.trim() === '' ||
-              result.year === 'unknown' ||
-              !/^\d{4}$/.test(result.year)
-            : true) &&
-          (searchType
-            ? getType(result) === searchType
-            : true)
+      const targetTitle = normalizeTitle(videoTitleRef.current).toLowerCase();
+      if (!targetTitle) return [];
+
+      const matchesMetadata = (result: SearchResult) =>
+        (videoYearRef.current
+          ? result.year.toLowerCase() === videoYearRef.current.toLowerCase() ||
+            !result.year ||
+            result.year.trim() === '' ||
+            result.year === 'unknown' ||
+            !/^\d{4}$/.test(result.year)
+          : true) &&
+        (searchType ? getType(result) === searchType : true);
+
+      const metadataMatches = items.filter(matchesMetadata);
+      const exactMatches = metadataMatches.filter(
+        (result) => normalizeTitle(result.title).toLowerCase() === targetTitle
       );
+      if (exactMatches.length > 0) return exactMatches;
+
+      // 推荐卡片通常使用 TMDB/豆瓣标题，而采集源会附加“TV版 / 完结 / 年份”等后缀。
+      // 搜索页对此使用包含匹配；播放页也需要同样的回退，否则推荐入口会误报无结果。
+      return metadataMatches.filter((result) => {
+        const resultTitle = normalizeTitle(result.title).toLowerCase();
+        return (
+          resultTitle.includes(targetTitle) || targetTitle.includes(resultTitle)
+        );
+      });
     };
 
     const fetchSourcesData = async (query: string): Promise<SearchResult[]> => {
